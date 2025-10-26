@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, ChevronDown, Info, X, Search, ArrowUpDown, Sun, Moon } from 'lucide-react';
 import { ethers } from 'ethers';
+import Header from '@/components/Header';
 
 // const tokens = [
 //   { symbol: 'BEAM', name: 'Merit Circle', address: '0x1234...abcd', color: 'from-red-400 to-red-600' },
@@ -14,7 +15,7 @@ import { ethers } from 'ethers';
 //   { symbol: 'MELD', name: 'MELD', address: '0x9abc...yzab', color: 'from-red-400 to-red-600' },
 //   { symbol: 'MINT', name: 'Mintara', address: '0xdef0...cdef', color: 'from-red-500 to-red-700' },
 // ];
-const tokens = [
+const chains = [
   { symbol: 'BEAM', name: 'Merit Circle', address: '0x7138...2C50', color: 'from-purple-400 to-purple-600' },
   { symbol: 'DFK', name: 'DeFi Kingdoms', address: '0x6A9b8...aB48', color: 'from-blue-400 to-blue-600' },
   { symbol: 'DOS', name: 'DOS Labs', address: '0xdAC1...1ec7', color: 'from-green-400 to-green-600' },
@@ -23,7 +24,11 @@ const tokens = [
   { symbol: 'SHRAP', name: 'Shrapnel', address: '0xcbb7...398f', color: 'from-purple-500 to-blue-600' },
   { symbol: 'MELD', name: 'MELD', address: '0x4c3E...6883', color: 'from-gray-600 to-gray-800' },
 ];
-
+const tokens = [
+  { symbol: 'USDC', name: 'USDC', address: '0x7138...2C50', color: 'from-purple-400 to-purple-600' },
+  { symbol: 'USDT', name: 'USDT', address: '0x6A9b8...aB48', color: 'from-blue-400 to-blue-600' },
+  { symbol: 'DAI', name: 'DAI', address: '0xdAC1...1ec7', color: 'from-green-400 to-green-600' },
+];
 const FloatingIcon = ({
   symbol,
   delay,
@@ -134,14 +139,17 @@ const WalletModal = ({ isOpen, onClose, onConnect }: { isOpen: boolean, onClose:
 export default function AvalinkMain() {
   const [fromAmount, setFromAmount] = useState('');
   const [toAmount, setToAmount] = useState('');
-  const [fromToken, setFromToken] = useState(tokens[4]);
+  const [fromToken, setFromToken] = useState(tokens[0]);
   const [toToken, setToToken] = useState(tokens[1]);
+  const [fromChain, setFromChain] = useState(chains[0]);
+  const [toChain, setToChain] = useState(chains[1]);
   const [showFromModal, setShowFromModal] = useState(false);
   const [showToModal, setShowToModal] = useState(false);
+  const [showTokenModal, setShowTokenModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(true);
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [connectedWallet, setConnectedWallet] = useState<string | null>(null);
   const [walletAddress, setWalletAddress] = useState('');
@@ -152,6 +160,16 @@ export default function AvalinkMain() {
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode);
   }, [darkMode]);
+
+  // Auto-calculate to amount when from amount changes
+  useEffect(() => {
+    if (fromAmount && !isNaN(parseFloat(fromAmount))) {
+      const calculatedAmount = Math.max(0, parseFloat(fromAmount) - (parseFloat(fromAmount) * 0.05));
+      setToAmount(calculatedAmount.toString());
+    } else {
+      setToAmount('');
+    }
+  }, [fromAmount]);
 
   // Handle wallet connection
   const connectWallet = async (walletType: any) => {
@@ -214,15 +232,27 @@ export default function AvalinkMain() {
     setTimeout(() => setShowToast(false), 3000);
   };
 
-  // Handle swap tokens
+  // Handle swap chains
   const handleSwapTokens = () => {
-    const tempFromToken = fromToken;
+    const tempFromChain = fromChain;
     const tempFromAmount = fromAmount;
-    setFromToken(toToken);
+    setFromChain(toChain);
     setFromAmount(toAmount);
-    setToToken(tempFromToken);
+    setToChain(tempFromChain);
     setToAmount(tempFromAmount);
   };
+
+  const selectChain = (chain:any, isFrom:boolean) => {
+    if (isFrom) {
+      setFromChain(chain);
+      setShowFromModal(false);
+    } else {
+      setToChain(chain);
+      setShowToModal(false);
+    }
+    setSearchQuery('');
+  };
+
 
   const selectToken = (token:any, isFrom:boolean) => {
     if (isFrom) {
@@ -241,7 +271,7 @@ export default function AvalinkMain() {
       return;
     }
     
-    const message = `Sell: ${fromAmount || '0'} ${fromToken.symbol} → Buy: ${toAmount || '0'} ${toToken.symbol}`;
+    const message = `Transfer: ${fromAmount || '0'} ${fromToken.symbol} from ${fromChain.symbol} → ${toAmount || '0'} ${fromToken.symbol} to ${toChain.symbol}`;
     setToastMessage(message);
     setShowToast(true);
     setTimeout(() => setShowToast(false), 6000);
@@ -251,7 +281,82 @@ export default function AvalinkMain() {
     setDarkMode(!darkMode);
   };
 
-  const TokenModal = ({ isOpen, onClose, onSelect, currentToken, isFrom }: { isOpen: boolean, onClose: () => void, onSelect: (token:any) => void, currentToken: any, isFrom: boolean }) => {
+  const ChainModal = ({ isOpen, onClose, onSelect, currnetChain, isFrom }: { isOpen: boolean, onClose: () => void, onSelect: (chain:any) => void, currnetChain: any, isFrom: boolean }) => {
+    const [searchQuery, setSearchQuery] = useState('');
+  
+    if (!isOpen) return null;
+  
+    const filteredChains = chains.filter(
+      chain =>
+        chain.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        chain.symbol.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  
+    return (
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className={`bg-${darkMode ? 'gray-900' : 'white'} rounded-3xl w-full max-w-md shadow-2xl border ${darkMode ? 'border-gray-800' : 'border-gray-200'}`}>
+          <div className={`flex items-center justify-between p-5 border-b ${darkMode ? 'border-gray-800' : 'border-gray-200'}`}>
+            <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Select a chain</h3>
+            <button onClick={onClose} className={`p-2 hover:bg-${darkMode ? 'gray-800' : 'gray-100'} rounded-xl transition-colors`}>
+              <X className={`w-5 h-5 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} />
+            </button>
+          </div>
+  
+          <div className="p-4 h-m">
+            <div className="relative mb-4">
+              <Search className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search chains"
+                className={`w-full ${darkMode ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-900'} pl-12 pr-4 py-3 rounded-2xl outline-none focus:ring-2 focus:ring-red-500 transition-all`}
+              />
+            </div>
+  
+            <div className="flex flex-col gap-4 h-[500px]">
+            {/* Recommended Chains */}
+            <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+              {chains.slice(0, 5).map((chain:any) => (
+                <button
+                  key={chain.symbol}
+                  onClick={() => { onSelect(chain); setSearchQuery(''); }}
+                  className={`flex flex-col items-center gap-1 px-3 py-2 ${darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'} rounded-xl transition-colors flex-shrink-0`}
+                >
+                  <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${chain.color} flex items-center justify-center text-white text-xs font-bold`}>
+                    {chain.symbol.slice(0, 2)}
+                  </div>
+                  <span className={`text-xs ${darkMode ? 'text-white' : 'text-gray-900'} font-medium`}>{chain.symbol}</span>
+                </button>
+              ))}
+            </div>
+  
+            {/* Filtered Chains List */}
+            <div className="max-h-96 overflow-y-auto">
+              {filteredChains.map((chain: any) => (
+                <button
+                  key={chain.symbol}
+                  onClick={() => { onSelect(chain); setSearchQuery(''); }}
+                  className={`w-full flex items-center gap-3 p-3 ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-100'} rounded-xl transition-colors`}
+                >
+                  <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${chain.color} flex items-center justify-center text-white font-bold text-sm flex-shrink-0`}>
+                    {chain.symbol.slice(0, 2)}
+                  </div>
+                  <div className="flex-1 text-left">
+                    <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{chain.name}</div>
+                    <div className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>{chain.symbol} · {chain.address}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const TokenModal = ({ isOpen, onClose, onSelect, currnetToken, isFrom }: { isOpen: boolean, onClose: () => void, onSelect: (token:any) => void, currnetToken: any, isFrom: boolean }) => {
     const [searchQuery, setSearchQuery] = useState('');
   
     if (!isOpen) return null;
@@ -331,79 +436,33 @@ export default function AvalinkMain() {
     <div className={`min-h-screen ${darkMode ? 'bg-gray-950' : 'bg-white'} relative overflow-hidden transition-colors duration-300`}>
       {/* Floating Background Icons */}
 
-      {/* <FloatingIcon symbol="BEAM" delay="2s" x="85%" y="20%" color="from-red-400 to-red-600" size={184} textSize={46} />
+      <FloatingIcon symbol="BEAM" delay="2s" x="85%" y="20%" color="from-red-400 to-red-600" size={184} textSize={46} />
       <FloatingIcon symbol="DFK" delay="0s" x="5%" y="15%" color="from-red-500 to-red-700" size={120} textSize={30} />
       <FloatingIcon symbol="DOS" delay="4s" x="10%" y="70%" color="from-red-400 to-red-600" size={98} textSize={24} />
       <FloatingIcon symbol="DEX" delay="6s" x="90%" y="60%" color="from-red-500 to-red-700" size={64} textSize={16} />
       <FloatingIcon symbol="LOCO" delay="8s" x="50%" y="10%" color="from-red-400 to-red-600" size={87} textSize={22} />
       <FloatingIcon symbol="SHRAP" delay="10s" x="75%" y="80%" color="from-red-500 to-red-700" size={66} textSize={16} />
-      <FloatingIcon symbol="MELD" delay="12s" x="20%" y="40%" color="from-red-400 to-red-600" size={98} textSize={24} /> */}
+      <FloatingIcon symbol="MELD" delay="12s" x="20%" y="40%" color="from-red-400 to-red-600" size={98} textSize={24} />
 
-
+{/* 
       <FloatingIcon symbol="BEAM" delay="2s" x="85%" y="20%" color="from-purple-400 to-purple-600" size={184} textSize={46} />
       <FloatingIcon symbol="DFK" delay="0s" x="5%" y="15%" color="from-blue-400 to-blue-600" size={120} textSize={30} />
       <FloatingIcon symbol="DOS" delay="4s" x="10%" y="70%" color="from-green-400 to-green-600" size={98} textSize={24} />
       <FloatingIcon symbol="DEX" delay="6s" x="90%" y="60%" color="from-orange-400 to-orange-600" size={64} textSize={16} />
       <FloatingIcon symbol="LOCO" delay="8s" x="50%" y="10%" color="from-blue-300 to-blue-500" size={87} textSize={22} />
       <FloatingIcon symbol="SHRAP" delay="10s" x="75%" y="80%" color="from-purple-500 to-blue-600" size={66} textSize={16} />
-      <FloatingIcon symbol="MELD" delay="12s" x="20%" y="40%" color="from-gray-600 to-gray-800" size={98} textSize={24} />
+      <FloatingIcon symbol="MELD" delay="12s" x="20%" y="40%" color="from-gray-600 to-gray-800" size={98} textSize={24} /> */}
 
       {/* Header */}
-      <header className={`relative z-10 flex items-center justify-between px-6 py-4 border-b ${darkMode ? 'border-gray-800/50 bg-gray-900/30' : 'border-gray-200 bg-white/30'} backdrop-blur-xl transition-colors duration-300`}>
-        <div className="flex items-center gap-8">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 flex items-center justify-center">
-            {/* Black outer triangle */}
-            <div className="w-0 h-0 border-l-10 border-r-10 border-b-20 border-l-transparent border-r-transparent border-b-black relative">
-              {/* Red inner triangle */}
-              <div className="absolute top-1 left-0 w-0 h-0 border-l-8 border-r-8 border-b-16 border-l-transparent border-r-transparent border-b-red-500" />
-            </div>
-          </div>
-
-            <span className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Avalink</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <button className={`p-2 ${darkMode ? 'hover:bg-gray-800/50' : 'hover:bg-gray-200'} rounded-xl transition-colors`}>
-            <div className={`w-6 h-6 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>⋯</div>
-          </button>
-          
-          {/* Dark/Light Mode Toggle Button */}
-          <button 
-            onClick={toggleDarkMode} 
-            className={`p-2 ${darkMode ? 'hover:bg-gray-800/50' : 'hover:bg-gray-200'} rounded-xl transition-colors`}
-          >
-            {darkMode ? (
-              <Sun className="w-5 h-5 text-yellow-400" />
-            ) : (
-              <Moon className="w-5 h-5 text-gray-700" />
-            )}
-          </button>
-          
-          {/* Wallet Connection */}
-          {connectedWallet ? (
-            <div className="flex items-center gap-2">
-              <div className="px-3 py-2 bg-gray-800 text-white rounded-xl text-sm font-mono">
-                {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
-              </div>
-              <button 
-                onClick={disconnectWallet}
-                className="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl text-sm font-medium transition-all"
-              >
-                Disconnect
-              </button>
-            </div>
-          ) : (
-            <button 
-              onClick={() => setShowWalletModal(true)}
-              className={`px-5 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl font-medium transition-all`}
-            >
-              Connect
-            </button>
-          )}
-        </div>
-      </header>
-
+      <Header
+        darkMode={darkMode}
+        toggleDarkMode={toggleDarkMode}
+        connectedWallet={!!connectedWallet}
+        walletAddress={walletAddress}
+        disconnectWallet={disconnectWallet}
+        setShowWalletModal={setShowWalletModal}
+      />
+      
       {/* Main Content */}
       <main className={`relative z-10 flex flex-col items-center justify-center px-4 py-16 transition-colors duration-300`}>
         <div className="text-center mb-12">
@@ -416,6 +475,23 @@ export default function AvalinkMain() {
         </div>
 
         <div className="w-full max-w-md">
+          {/* Token Selection Dropdown */}
+          <button
+            onClick={() => setShowTokenModal(true)}
+            className={`w-full bg-${darkMode ? 'gray-900/50' : 'white/50'} backdrop-blur-xl rounded-3xl border ${darkMode ? 'border-gray-800/50' : 'border-gray-200'} p-4 shadow-2xl transition-colors duration-300 mb-4 hover:${darkMode ? 'bg-gray-900/70' : 'bg-white/70'} flex items-center justify-between`}
+          >
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${fromToken.color} flex items-center justify-center text-white text-lg font-bold`}>
+                {fromToken.symbol.slice(0, 2)}
+              </div>
+              <div className="text-left">
+                <div className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{fromToken.symbol}</div>
+                <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{fromToken.name}</div>
+              </div>
+            </div>
+            <ChevronDown className={`w-6 h-6 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+          </button>
+
           {/* Swap Card */}
           <div className={`bg-${darkMode ? 'gray-900/50' : 'white/50'} backdrop-blur-xl rounded-3xl border ${darkMode ? 'border-gray-800/50' : 'border-gray-200'} p-3 shadow-2xl transition-colors duration-300`}>
             {/* From Token Input */}
@@ -425,7 +501,7 @@ export default function AvalinkMain() {
               </div>
               <div className="flex items-center justify-between gap-3">
                 <input
-                  type="text"
+                  type="number"
                   value={fromAmount}
                   onChange={(e) => setFromAmount(e.target.value)}
                   placeholder="0"
@@ -435,10 +511,10 @@ export default function AvalinkMain() {
                   onClick={() => setShowFromModal(true)}
                   className={`flex items-center gap-2 px-3 py-2 ${darkMode ? 'bg-gray-700/50 hover:bg-gray-700' : 'bg-gray-200 hover:bg-gray-300'} rounded-2xl transition-colors flex-shrink-0 min-w-[120px]`}
                 >
-                  <div className={`w-6 h-6 rounded-full bg-gradient-to-br ${fromToken.color} flex items-center justify-center text-white text-xs font-bold`}>
-                    {fromToken.symbol.slice(0, 2)}
+                  <div className={`w-6 h-6 rounded-full bg-gradient-to-br ${fromChain.color} flex items-center justify-center text-white text-xs font-bold`}>
+                    {fromChain.symbol.slice(0, 2)}
                   </div>
-                  <span className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{fromToken.symbol}</span>
+                  <span className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{fromChain.symbol}</span>
                   <ChevronDown className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
                 </button>
               </div>
@@ -446,7 +522,7 @@ export default function AvalinkMain() {
             </div>
 
             {/* Swap Button */}
-            <div className="flex justify-center -my-4 relative z-10 ">
+            <div className="flex justify-center items-center -my-4 relative z-10">
               <button
                 onClick={handleSwapTokens}
                 className={`p-2 ${darkMode ? 'bg-gray-800/80 hover:bg-gray-700' : 'bg-gray-200 hover:bg-gray-300'} border-6 ${darkMode ? 'border-gray-900' : 'border-white'} rounded-xl transition-all`}
@@ -461,33 +537,29 @@ export default function AvalinkMain() {
                 <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Buy</span>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <input
-                  type="text"
-                  value={toAmount}
-                  onChange={(e) => setToAmount(e.target.value)}
-                  placeholder="0"
-                  className={`bg-transparent text-4xl font-medium ${darkMode ? 'text-white' : 'text-gray-900'} outline-none w-full transition-colors duration-300`}
-                />
+                <div className={`text-4xl font-medium ${darkMode ? 'text-white' : 'text-gray-900'} w-full transition-colors duration-300`}>
+                  {toAmount || '0'}
+                </div>
                 <button
                   onClick={() => setShowToModal(true)}
                   className={`flex items-center gap-2 px-3 py-2 ${darkMode ? 'bg-gray-700/50 hover:bg-gray-700' : 'bg-gray-200 hover:bg-gray-300'} rounded-2xl transition-colors flex-shrink-0 min-w-[120px]`}
                 >
-                  <div className={`w-6 h-6 rounded-full bg-gradient-to-br ${toToken.color} flex items-center justify-center text-white text-xs font-bold`}>
-                    {toToken.symbol.slice(0, 2)}
+                  <div className={`w-6 h-6 rounded-full bg-gradient-to-br ${toChain.color} flex items-center justify-center text-white text-xs font-bold`}>
+                    {toChain.symbol.slice(0, 2)}
                   </div>
-                  <span className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{toToken.symbol}</span>
+                  <span className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{toChain.symbol}</span>
                   <ChevronDown className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
                 </button>
               </div>
               <div className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-400'} mt-2 transition-colors duration-300`}>$0</div>
             </div>
 
-            {/* Get Started Button */}
+            {/* Bridge Tokens Button */}
             <button 
               onClick={handleGetStarted}
               className={`w-full py-4 bg-gradient-to-r from-red-500/20 to-red-600/20 hover:from-red-500/30 hover:to-red-600/30 text-red-500 rounded-2xl font-semibold text-lg border border-red-500/30 transition-all`}
             >
-              Get started
+              {connectedWallet ? `Receive ${toAmount} ${fromToken.symbol} on ${toChain.symbol}` : 'Get started'}
             </button>
           </div>
 
@@ -498,19 +570,30 @@ export default function AvalinkMain() {
       </main>
 
       {/* Modals */}
-      <TokenModal
+      <ChainModal
         isOpen={showFromModal}
         onClose={() => setShowFromModal(false)}
-        onSelect={(token) => selectToken(token, true)}
-        currentToken={fromToken}
+        onSelect={(chain) => selectChain(chain, true)}
+        currnetChain={fromChain}
         isFrom={true}
       />
-      <TokenModal
+      <ChainModal
         isOpen={showToModal}
         onClose={() => setShowToModal(false)}
-        onSelect={(token) => selectToken(token, false)}
-        currentToken={toToken}
+        onSelect={(chain) => selectChain(chain, false)}
+        currnetChain={toChain}
         isFrom={false}
+      />
+      
+      <TokenModal
+        isOpen={showTokenModal}
+        onClose={() => setShowTokenModal(false)}
+        onSelect={(token) => {
+          setFromToken(token);
+          setShowTokenModal(false);
+        }}
+        currnetToken={fromToken}
+        isFrom={true}
       />
       
       <WalletModal
