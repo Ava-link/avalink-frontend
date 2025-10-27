@@ -1,10 +1,27 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ArrowLeft, Save, Plus, X } from 'lucide-react';
+import { ArrowLeft, Plus, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import Header from '@/components/Header';
+import { ethers } from 'ethers';
+import { useWallet } from '../providers/WalletProvider';
 import { supabase, Chain, Token } from '@/lib/supabase';
+import ERC20TokenRemoteABI from '@/abi/ERC20TokenRemote.json';
+
+// Type for the ABI
+interface ContractABI {
+  abi: ethers.InterfaceAbi;
+}
+
+// Extend Window interface to include ethereum
+declare global {
+  interface Window {
+    ethereum?: {
+      request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+      send: (method: string, params?: unknown[]) => Promise<unknown>;
+    };
+  }
+}
 
 interface ChainFormData {
   chain_id: string;
@@ -27,11 +44,12 @@ interface TokenFormData {
 
 export default function NewChainRegisterPage() {
   const router = useRouter();
-  const [darkMode, setDarkMode] = useState(true);
+  const { darkMode, signer: ctxSigner } = useWallet();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
-  
+  const [signer, setSigner] = useState<ethers.JsonRpcSigner | null>(null);
   const [chainData, setChainData] = useState<ChainFormData>({
     chain_id: '',
     chain_name: '',
@@ -52,6 +70,51 @@ export default function NewChainRegisterPage() {
       decimals: '18',
     }
   ]);
+
+  const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS
+
+  // Use signer from context
+  React.useEffect(() => {
+    if (ctxSigner) setSigner(ctxSigner);
+  }, [ctxSigner]);
+
+  const registerWithHome = async () => {
+    if (!signer || !contractAddress) {
+      showToastMessage('Please connect your wallet first.');
+      return;
+    }
+
+    setIsVerifying(true);
+
+    try {
+      const contract = new ethers.Contract(contractAddress, (ERC20TokenRemoteABI as ContractABI).abi, signer);
+      
+      // Prepare fee info - using zero fee for now
+      const feeInfo = {
+        feeTokenAddress: ethers.ZeroAddress, // Using zero address for no fee
+        amount: 0 // Zero amount
+      };
+
+      // Call registerWithHome function
+      const tx = await contract.registerWithHome(feeInfo);
+      
+      showToastMessage('Transaction sent! Waiting for confirmation...');
+      
+      // Wait for transaction confirmation
+      const receipt = await tx.wait();
+      
+      if (receipt.status === 1) {
+        showToastMessage('Chain registered with home successfully!');
+      } else {
+        throw new Error('Transaction failed');
+      }
+    } catch (error) {
+      console.error('Error calling registerWithHome:', error);
+      showToastMessage(error instanceof Error ? error.message : 'Failed to register with home. Please try again.');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
 
   const handleChainInputChange = (field: keyof ChainFormData, value: string | boolean) => {
     setChainData(prev => ({
@@ -106,7 +169,7 @@ export default function NewChainRegisterPage() {
       };
 
       // Insert chain into database
-      const { data: chainResult, error: chainError } = await supabase
+      const { error: chainError } = await supabase
         .from('chains')
         .insert([chainRecord])
         .select()
@@ -175,20 +238,11 @@ export default function NewChainRegisterPage() {
     }
   };
 
-  const toggleDarkMode = () => {
-    setDarkMode(!darkMode);
-  };
+  // darkMode and toggleDarkMode are provided by context in layout
 
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-gray-950' : 'bg-white'} transition-colors duration-300`}>
-      <Header
-        darkMode={darkMode}
-        toggleDarkMode={toggleDarkMode}
-        connectedWallet={false}
-        walletAddress=""
-        disconnectWallet={() => {}}
-        setShowWalletModal={() => {}}
-      />
+      {/* Header is provided globally from layout */}
 
       <main className="container mx-auto px-4 py-8 max-w-4xl">
         {/* Back Button */}
@@ -448,7 +502,31 @@ export default function NewChainRegisterPage() {
           </div>
 
           {/* Submit Button */}
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={registerWithHome}
+              disabled={isVerifying || !signer}
+              className={`flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 disabled:from-gray-500 disabled:to-gray-600 text-white rounded-2xl font-semibold text-lg transition-all shadow-lg ${
+                isVerifying || !signer ? 'cursor-not-allowed' : 'cursor-pointer'
+              }`}
+            >
+              {isVerifying ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Verifying...
+                </>
+              ) : !signer ? (
+                <>
+                  Connect Wallet First
+                </>
+              ) : (
+                <>
+                  {/* <Save className="w-5 h-5" /> */}
+                  Verify
+                </>
+              )}
+            </button>
             <button
               type="submit"
               disabled={isSubmitting}
@@ -463,7 +541,7 @@ export default function NewChainRegisterPage() {
                 </>
               ) : (
                 <>
-                  <Save className="w-5 h-5" />
+                  {/* <Save className="w-5 h-5" /> */}
                   Register Chain
                 </>
               )}

@@ -1,4 +1,6 @@
-import { Sun, Moon, Plus } from 'lucide-react';
+"use client"
+
+import { Sun, Moon, Plus, Home } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 
@@ -8,6 +10,10 @@ export default function Header({ darkMode, toggleDarkMode, connectedWallet, wall
 
   const handleAddChain = () => {
     router.push('/newchainregister');
+  };
+
+  const handleHome = () => {
+    router.push('/');
   };
 
   return (
@@ -28,6 +34,15 @@ export default function Header({ darkMode, toggleDarkMode, connectedWallet, wall
           </div>
         </div>
         <div className="flex items-center gap-3">
+          {/* Home Button */}
+          <button 
+            onClick={handleHome}
+            className={`flex items-center gap-2 px-4 py-2 ${darkMode ? 'bg-gray-800/50 hover:bg-gray-700' : 'bg-gray-200 hover:bg-gray-300'} rounded-xl transition-colors`}
+          >
+            <Home className="w-4 h-4" />
+            <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>Home</span>
+          </button>
+
           {/* Add Chain Button */}
           <button 
             onClick={handleAddChain}

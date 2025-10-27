@@ -1,9 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Settings, ChevronDown, Info, X, Search, ArrowUpDown, Sun, Moon } from 'lucide-react';
-import { ethers } from 'ethers';
-import Header from '@/components/Header';
+import { ChevronDown, X, Search, ArrowUpDown } from 'lucide-react';
+import { useWallet } from './providers/WalletProvider';
 
 // const tokens = [
 //   { symbol: 'BEAM', name: 'Merit Circle', address: '0x1234...abcd', color: 'from-red-400 to-red-600' },
@@ -86,7 +85,7 @@ const Toast = ({ message, isVisible, onClose }: { message: string, isVisible: bo
 };
 
 // Wallet Connection Modal
-const WalletModal = ({ isOpen, onClose, onConnect }: { isOpen: boolean, onClose: () => void, onConnect: (walletType:any) => void }) => {
+const WalletModal = ({ isOpen, onClose, onConnect }: { isOpen: boolean, onClose: () => void, onConnect: (walletType: string) => void }) => {
   if (!isOpen) return null;
 
   const wallets = [
@@ -137,29 +136,23 @@ const WalletModal = ({ isOpen, onClose, onConnect }: { isOpen: boolean, onClose:
 };
 
 export default function AvalinkMain() {
+  const { darkMode, connectedWallet, connect } = useWallet();
   const [fromAmount, setFromAmount] = useState('');
   const [toAmount, setToAmount] = useState('');
   const [fromToken, setFromToken] = useState(tokens[0]);
-  const [toToken, setToToken] = useState(tokens[1]);
   const [fromChain, setFromChain] = useState(chains[0]);
   const [toChain, setToChain] = useState(chains[1]);
   const [showFromModal, setShowFromModal] = useState(false);
   const [showToModal, setShowToModal] = useState(false);
   const [showTokenModal, setShowTokenModal] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
-  const [darkMode, setDarkMode] = useState(true);
   const [showWalletModal, setShowWalletModal] = useState(false);
-  const [connectedWallet, setConnectedWallet] = useState<string | null>(null);
-  const [walletAddress, setWalletAddress] = useState('');
-  const [provider, setProvider] = useState(null);
-  const [signer, setSigner] = useState(null);
 
-  // Apply theme based on darkMode state
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', darkMode);
-  }, [darkMode]);
+  // Theme handled in provider; keep to force re-render on toggle if needed
+  useEffect(() => {}, [darkMode]);
+
+  // Auto-reconnect handled by WalletProvider
 
   // Auto-calculate to amount when from amount changes
   useEffect(() => {
@@ -171,48 +164,14 @@ export default function AvalinkMain() {
     }
   }, [fromAmount]);
 
-  // Handle wallet connection
-  const connectWallet = async (walletType: any) => {
+  // Handle wallet connection via context
+  const connectWallet = async (walletType: string) => {
     try {
-      // Safely access window.ethereum and window.core using type assertions
-      const anyWindow = window as any;
-      if (typeof anyWindow.ethereum !== 'undefined') {
-        let provider;
-        
-        // Handle Core Wallet detection
-        if (walletType === 'core' && anyWindow.core) {
-          provider = new ethers.BrowserProvider(anyWindow.core);
-          setConnectedWallet('core');
-        } 
-        // Handle MetaMask
-        else if (walletType === 'metamask') {
-          provider = new ethers.BrowserProvider(anyWindow.ethereum);
-          setConnectedWallet('metamask');
-        } 
-        // Fallback to default Ethereum provider
-        else {
-          provider = new ethers.BrowserProvider(anyWindow.ethereum);
-          setConnectedWallet('metamask');
-        }
-
-        // Request account access
-        await provider.send("eth_requestAccounts", []);
-        const signer = provider.getSigner();
-        const resolvedSigner = await signer;
-        const address = await resolvedSigner.getAddress();
-
-        setProvider(provider as any);
-        setSigner(resolvedSigner as any);
-        setWalletAddress(address);
-        setShowWalletModal(false);
-        setToastMessage(`Connected to ${walletType === 'core' ? 'Core Wallet' : 'MetaMask'}`);
-        setShowToast(true);
-        setTimeout(() => setShowToast(false), 3000);
-      } else {
-        setToastMessage('Please install MetaMask or Core Wallet');
-        setShowToast(true);
-        setTimeout(() => setShowToast(false), 3000);
-      }
+      await connect(walletType as 'metamask' | 'core');
+      setShowWalletModal(false);
+      setToastMessage(`Connected to ${walletType === 'core' ? 'Core Wallet' : 'MetaMask'}`);
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
     } catch (error) {
       console.error('Connection error:', error);
       setToastMessage('Connection failed. Please try again.');
@@ -223,10 +182,7 @@ export default function AvalinkMain() {
 
   // Disconnect wallet
   const disconnectWallet = () => {
-    setConnectedWallet(null);
-    setWalletAddress('');
-    setProvider(null);
-    setSigner(null);
+    // disconnect is handled by context
     setToastMessage('Wallet disconnected');
     setShowToast(true);
     setTimeout(() => setShowToast(false), 3000);
@@ -242,7 +198,7 @@ export default function AvalinkMain() {
     setToAmount(tempFromAmount);
   };
 
-  const selectChain = (chain:any, isFrom:boolean) => {
+  const selectChain = (chain: typeof chains[0], isFrom: boolean) => {
     if (isFrom) {
       setFromChain(chain);
       setShowFromModal(false);
@@ -250,19 +206,17 @@ export default function AvalinkMain() {
       setToChain(chain);
       setShowToModal(false);
     }
-    setSearchQuery('');
   };
 
 
-  const selectToken = (token:any, isFrom:boolean) => {
+  const selectToken = (token: typeof tokens[0], isFrom: boolean) => {
     if (isFrom) {
       setFromToken(token);
       setShowFromModal(false);
     } else {
-      setToToken(token);
+      setFromToken(token);
       setShowToModal(false);
     }
-    setSearchQuery('');
   };
 
   const handleGetStarted = () => {
@@ -277,11 +231,9 @@ export default function AvalinkMain() {
     setTimeout(() => setShowToast(false), 6000);
   };
 
-  const toggleDarkMode = () => {
-    setDarkMode(!darkMode);
-  };
+  // toggleDarkMode comes from context
 
-  const ChainModal = ({ isOpen, onClose, onSelect, currnetChain, isFrom }: { isOpen: boolean, onClose: () => void, onSelect: (chain:any) => void, currnetChain: any, isFrom: boolean }) => {
+  const ChainModal = ({ isOpen, onClose, onSelect, currentChain, isFrom }: { isOpen: boolean, onClose: () => void, onSelect: (chain: typeof chains[0]) => void, currentChain: typeof chains[0], isFrom: boolean }) => {
     const [searchQuery, setSearchQuery] = useState('');
   
     if (!isOpen) return null;
@@ -317,10 +269,10 @@ export default function AvalinkMain() {
             <div className="flex flex-col gap-4 h-[500px]">
             {/* Recommended Chains */}
             <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
-              {chains.slice(0, 5).map((chain:any) => (
+              {chains.slice(0, 5).map((chain) => (
                 <button
                   key={chain.symbol}
-                  onClick={() => { onSelect(chain); setSearchQuery(''); }}
+                  onClick={() => { onSelect(chain); }}
                   className={`flex flex-col items-center gap-1 px-3 py-2 ${darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'} rounded-xl transition-colors flex-shrink-0`}
                 >
                   <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${chain.color} flex items-center justify-center text-white text-xs font-bold`}>
@@ -333,10 +285,10 @@ export default function AvalinkMain() {
   
             {/* Filtered Chains List */}
             <div className="max-h-96 overflow-y-auto">
-              {filteredChains.map((chain: any) => (
+              {filteredChains.map((chain) => (
                 <button
                   key={chain.symbol}
-                  onClick={() => { onSelect(chain); setSearchQuery(''); }}
+                  onClick={() => { onSelect(chain); }}
                   className={`w-full flex items-center gap-3 p-3 ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-100'} rounded-xl transition-colors`}
                 >
                   <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${chain.color} flex items-center justify-center text-white font-bold text-sm flex-shrink-0`}>
@@ -356,7 +308,7 @@ export default function AvalinkMain() {
     );
   };
 
-  const TokenModal = ({ isOpen, onClose, onSelect, currnetToken, isFrom }: { isOpen: boolean, onClose: () => void, onSelect: (token:any) => void, currnetToken: any, isFrom: boolean }) => {
+  const TokenModal = ({ isOpen, onClose, onSelect, currentToken, isFrom }: { isOpen: boolean, onClose: () => void, onSelect: (token: typeof tokens[0]) => void, currentToken: typeof tokens[0], isFrom: boolean }) => {
     const [searchQuery, setSearchQuery] = useState('');
   
     if (!isOpen) return null;
@@ -392,10 +344,10 @@ export default function AvalinkMain() {
             <div className="flex flex-col gap-4 h-[500px]">
             {/* Recommended Tokens */}
             <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
-              {tokens.slice(0, 5).map((token:any) => (
+              {tokens.slice(0, 5).map((token) => (
                 <button
                   key={token.symbol}
-                  onClick={() => { onSelect(token); setSearchQuery(''); }}
+                  onClick={() => { onSelect(token); }}
                   className={`flex flex-col items-center gap-1 px-3 py-2 ${darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'} rounded-xl transition-colors flex-shrink-0`}
                 >
                   <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${token.color} flex items-center justify-center text-white text-xs font-bold`}>
@@ -408,10 +360,10 @@ export default function AvalinkMain() {
   
             {/* Filtered Tokens List */}
             <div className="max-h-96 overflow-y-auto">
-              {filteredTokens.map((token: any) => (
+              {filteredTokens.map((token) => (
                 <button
                   key={token.symbol}
-                  onClick={() => { onSelect(token); setSearchQuery(''); }}
+                  onClick={() => { onSelect(token); }}
                   className={`w-full flex items-center gap-3 p-3 ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-100'} rounded-xl transition-colors`}
                 >
                   <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${token.color} flex items-center justify-center text-white font-bold text-sm flex-shrink-0`}>
@@ -453,15 +405,7 @@ export default function AvalinkMain() {
       <FloatingIcon symbol="SHRAP" delay="10s" x="75%" y="80%" color="from-purple-500 to-blue-600" size={66} textSize={16} />
       <FloatingIcon symbol="MELD" delay="12s" x="20%" y="40%" color="from-gray-600 to-gray-800" size={98} textSize={24} /> */}
 
-      {/* Header */}
-      <Header
-        darkMode={darkMode}
-        toggleDarkMode={toggleDarkMode}
-        connectedWallet={!!connectedWallet}
-        walletAddress={walletAddress}
-        disconnectWallet={disconnectWallet}
-        setShowWalletModal={setShowWalletModal}
-      />
+      {/* Header is rendered from layout via provider */}
       
       {/* Main Content */}
       <main className={`relative z-10 flex flex-col items-center justify-center px-4 py-16 transition-colors duration-300`}>
@@ -574,14 +518,14 @@ export default function AvalinkMain() {
         isOpen={showFromModal}
         onClose={() => setShowFromModal(false)}
         onSelect={(chain) => selectChain(chain, true)}
-        currnetChain={fromChain}
+        currentChain={fromChain}
         isFrom={true}
       />
       <ChainModal
         isOpen={showToModal}
         onClose={() => setShowToModal(false)}
         onSelect={(chain) => selectChain(chain, false)}
-        currnetChain={toChain}
+        currentChain={toChain}
         isFrom={false}
       />
       
@@ -592,7 +536,7 @@ export default function AvalinkMain() {
           setFromToken(token);
           setShowTokenModal(false);
         }}
-        currnetToken={fromToken}
+        currentToken={fromToken}
         isFrom={true}
       />
       
