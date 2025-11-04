@@ -310,36 +310,6 @@ export default function NewChainRegisterPage() {
 
               <div>
                 <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                  Token Address *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={homeChain.tokenAddress}
-                  onChange={(e) => handleHomeChainInputChange('tokenAddress', e.target.value)}
-                  className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all`}
-                  placeholder="0x9dafF7B0c496591CC20Af1D8394FF1cB8696c9a7"
-                />
-              </div>
-
-              <div>
-                <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                  Token Decimals *
-                </label>
-                <input
-                  type="number"
-                  required
-                  min="0"
-                  max="18"
-                  value={homeChain.tokenDecimals}
-                  onChange={(e) => handleHomeChainInputChange('tokenDecimals', e.target.value)}
-                  className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all`}
-                  placeholder="18"
-                />
-              </div>
-
-              <div>
-                <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
                   Teleporter Manager Address *
                 </label>
                 <input
@@ -365,6 +335,44 @@ export default function NewChainRegisterPage() {
                   className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all`}
                   placeholder="1"
                 />
+              </div>
+            </div>
+
+            {/* Token Configuration */}
+            <div className={`mt-6 pt-6 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+              <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'} mb-4`}>
+                Token Configuration
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                    Token Address *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={homeChain.tokenAddress}
+                    onChange={(e) => handleHomeChainInputChange('tokenAddress', e.target.value)}
+                    className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all`}
+                    placeholder="0x9dafF7B0c496591CC20Af1D8394FF1cB8696c9a7"
+                  />
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                    Token Decimals *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    max="18"
+                    value={homeChain.tokenDecimals}
+                    onChange={(e) => handleHomeChainInputChange('tokenDecimals', e.target.value)}
+                    className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all`}
+                    placeholder="18"
+                  />
+                </div>
               </div>
             </div>
 
@@ -520,81 +528,89 @@ export default function NewChainRegisterPage() {
                   placeholder="1"
                 />
               </div>
+            </div>
 
-              <div>
-                <label className={`flex items-center gap-2 text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                  Token Name *
-                  <div className="relative group">
-                    <Info className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
-                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none">
-                      <div className={`relative ${darkMode ? 'bg-gray-800 text-gray-200 border-gray-700' : 'bg-gray-900 text-white border-gray-600'} text-xs rounded-lg px-3 py-2 shadow-lg border whitespace-nowrap`}>
-                        What should be your wrapped token name on your chain. Example: Wrapped Avax
-                        <div className={`absolute top-full left-1/2 -translate-x-1/2 -mt-px w-0 h-0 ${darkMode ? 'border-t-gray-800' : 'border-t-gray-900'} border-l-transparent border-r-transparent border-b-transparent border-4`}></div>
+            {/* Token Configuration */}
+            <div className={`mt-6 pt-6 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+              <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'} mb-4`}>
+                Token Configuration
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className={`flex items-center gap-2 text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                    Token Name *
+                    <div className="relative group">
+                      <Info className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
+                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none">
+                        <div className={`relative ${darkMode ? 'bg-gray-800 text-gray-200 border-gray-700' : 'bg-gray-900 text-white border-gray-600'} text-xs rounded-lg px-3 py-2 shadow-lg border whitespace-nowrap`}>
+                          What should be your wrapped token name on your chain. Example: Wrapped Avax
+                          <div className={`absolute top-full left-1/2 -translate-x-1/2 -mt-px w-0 h-0 ${darkMode ? 'border-t-gray-800' : 'border-t-gray-900'} border-l-transparent border-r-transparent border-b-transparent border-4`}></div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={remoteChain.tokenName}
-                  onChange={(e) => handleRemoteChainInputChange('tokenName', e.target.value)}
-                  className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all`}
-                  placeholder="Wrapped Avax"
-                />
-              </div>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={remoteChain.tokenName}
+                    onChange={(e) => handleRemoteChainInputChange('tokenName', e.target.value)}
+                    className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all`}
+                    placeholder="Wrapped Avax"
+                  />
+                </div>
 
-              <div>
-                <label className={`flex items-center gap-2 text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                  Token Symbol * 
-                  <div className="relative group">
-                    <Info className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
-                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none">
-                      <div className={`relative ${darkMode ? 'bg-gray-800 text-gray-200 border-gray-700' : 'bg-gray-900 text-white border-gray-600'} text-xs rounded-lg px-3 py-2 shadow-lg border whitespace-nowrap`}>
-                        What should be your wrapped token symbol on your chain. Example: WAVAX
-                        <div className={`absolute top-full left-1/2 -translate-x-1/2 -mt-px w-0 h-0 ${darkMode ? 'border-t-gray-800' : 'border-t-gray-900'} border-l-transparent border-r-transparent border-b-transparent border-4`}></div>
+                <div>
+                  <label className={`flex items-center gap-2 text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                    Token Symbol * 
+                    <div className="relative group">
+                      <Info className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
+                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none">
+                        <div className={`relative ${darkMode ? 'bg-gray-800 text-gray-200 border-gray-700' : 'bg-gray-900 text-white border-gray-600'} text-xs rounded-lg px-3 py-2 shadow-lg border whitespace-nowrap`}>
+                          What should be your wrapped token symbol on your chain. Example: WAVAX
+                          <div className={`absolute top-full left-1/2 -translate-x-1/2 -mt-px w-0 h-0 ${darkMode ? 'border-t-gray-800' : 'border-t-gray-900'} border-l-transparent border-r-transparent border-b-transparent border-4`}></div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={remoteChain.tokenSymbol}
-                  onChange={(e) => handleRemoteChainInputChange('tokenSymbol', e.target.value)}
-                  className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all`}
-                  placeholder="WAVAX"
-                />
-              </div>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={remoteChain.tokenSymbol}
+                    onChange={(e) => handleRemoteChainInputChange('tokenSymbol', e.target.value)}
+                    className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all`}
+                    placeholder="WAVAX"
+                  />
+                </div>
 
-              <div>
-                <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                  Token Decimals *
-                </label>
-                <input
-                  type="number"
-                  required
-                  min="0"
-                  max="18"
-                  value={remoteChain.tokenDecimals}
-                  onChange={(e) => handleRemoteChainInputChange('tokenDecimals', e.target.value)}
-                  className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all`}
-                  placeholder="18"
-                />
-              </div>
+                <div>
+                  <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                    Token Decimals *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    max="18"
+                    value={remoteChain.tokenDecimals}
+                    onChange={(e) => handleRemoteChainInputChange('tokenDecimals', e.target.value)}
+                    className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all`}
+                    placeholder="18"
+                  />
+                </div>
 
-              <div>
-                <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                  Initial Reserve Imbalance *
-                </label>
-                <input
-                  type="number"
-                  required
-                  value={remoteChain.initialReserveImbalance}
-                  onChange={(e) => handleRemoteChainInputChange('initialReserveImbalance', e.target.value)}
-                  className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all`}
-                  placeholder="0"
-                />
+                <div>
+                  <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
+                    Initial Reserve Imbalance *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    value={remoteChain.initialReserveImbalance}
+                    onChange={(e) => handleRemoteChainInputChange('initialReserveImbalance', e.target.value)}
+                    className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all`}
+                    placeholder="0"
+                  />
+                </div>
               </div>
             </div>
 

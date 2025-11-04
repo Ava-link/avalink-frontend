@@ -32,6 +32,19 @@ export default function Header({ darkMode, toggleDarkMode, connectedWallet, wall
 
             <span className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Avalink</span>
           </div>
+
+
+          {/* Dark/Light Mode Toggle Button */}
+          <button 
+            onClick={toggleDarkMode} 
+            className={`p-2 ${darkMode ? 'hover:bg-gray-800/50' : 'hover:bg-gray-200'} rounded-xl transition-colors`}
+          >
+            {darkMode ? (
+              <Sun className="w-5 h-5 text-yellow-400" />
+            ) : (
+              <Moon className="w-5 h-5 text-gray-700" />
+            )}
+          </button>
         </div>
         <div className="flex items-center gap-3">
           {/* Home Button */}
@@ -50,18 +63,6 @@ export default function Header({ darkMode, toggleDarkMode, connectedWallet, wall
           >
             <Plus className={`w-4 h-4 ${darkMode ? 'text-white' : 'text-gray-900'}`} />
             <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>Add Chain</span>
-          </button>
-
-          {/* Dark/Light Mode Toggle Button */}
-          <button 
-            onClick={toggleDarkMode} 
-            className={`p-2 ${darkMode ? 'hover:bg-gray-800/50' : 'hover:bg-gray-200'} rounded-xl transition-colors`}
-          >
-            {darkMode ? (
-              <Sun className="w-5 h-5 text-yellow-400" />
-            ) : (
-              <Moon className="w-5 h-5 text-gray-700" />
-            )}
           </button>
           
           {/* Wallet Connection */}

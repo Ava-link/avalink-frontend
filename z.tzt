@@ -1,0 +1,77 @@
+before Remote Chain Configuration , there sould be a dropdown which should show a dropdown with 2 options , Custom and available chains :
+
+if user selects custom then it should sho all these options RPC URL , Teleporter Manager Address
+ , Min Teleporter Version ...
+
+but if user chooses available chains , user should be able to select from a list of token remote chains he gets from this :
+curl --location 'http://localhost:3002/deploy/ictt'
+
+response : 
+{
+    "success": true,
+    "icttSetups": [
+        {
+            "id": "c8587bd2-658a-4c97-b20d-5203dbf801af",
+            "setupName": "EXMP-MCT ICTT",
+            "tokenHomeAddress": "0xE6651534878639FDC48B3d6143ee806e73D7946c",
+            "tokenRemoteAddress": "0xE17804c663356390Ad246F32DA7266Ee80ea97EB",
+            "tokenHomeChain": {
+                "name": "Avalanche (C-Chain)",
+                "isTestnet": true,
+                "logoUrl": "https://images.ctfassets.net/gcj8jwzm6086/5VHupNKwnDYJvqMENeV7iJ/3e4b8ff10b69bfa31e70080a4b142cd0/avalanche-avax-logo.svg",
+                "teleporterAddress": "0x253b2784c75e510dD0fF1da844684a1aC0aa5fcf",
+                "teleporterRegistryAddress": "0xF86Cb19Ad8405AEFa7d09C778215D2Cb6eBfB228",
+                "hasIcmEnabled": true,
+                "explorerUrl": "https://subnets-test.avax.network/c-chain",
+                "nativeTokenName": "Avalanche",
+                "nativeTokenSymbol": "AVAX",
+                "blockchainId": "0x7fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d5"
+            },
+            "tokenRemoteChain": {
+                "name": "Dispatch L1",
+                "isTestnet": true,
+                "logoUrl": "https://images.ctfassets.net/gcj8jwzm6086/60XrKdf99PqQKrHiuYdwTE/908622f5204311dbb11be9c6008ead44/Dispatch_Subnet_Logo.png",
+                "teleporterAddress": "0x253b2784c75e510dD0fF1da844684a1aC0aa5fcf",
+                "teleporterRegistryAddress": "0xF86Cb19Ad8405AEFa7d09C778215D2Cb6eBfB228",
+                "hasIcmEnabled": true,
+                "explorerUrl": "https://subnets-test.avax.network/dispatch",
+                "nativeTokenName": "DIS",
+                "nativeTokenSymbol": "DIS",
+                "blockchainId": "0x9f49313c3f022e9fe5b6e7c1d98f0f53d86e53456c5e075e1881cac1c15968e4"
+            }
+        },
+        {
+            "id": "54f10bc0-834c-4b93-931d-6c39a193d649",
+            "setupName": "EXMP-MCT ICTT",
+            "tokenHomeAddress": "0x16B95b4825249A8A83f2a2eD24a744d1f7CF1b72",
+            "tokenRemoteAddress": "0x29C386b91A239f5c5CDd285aeD926B0685871c2F",
+            "tokenHomeChain": {
+                "name": "Avalanche (C-Chain)",
+                "isTestnet": true,
+                "logoUrl": "https://images.ctfassets.net/gcj8jwzm6086/5VHupNKwnDYJvqMENeV7iJ/3e4b8ff10b69bfa31e70080a4b142cd0/avalanche-avax-logo.svg",
+                "teleporterAddress": "0x253b2784c75e510dD0fF1da844684a1aC0aa5fcf",
+                "teleporterRegistryAddress": "0xF86Cb19Ad8405AEFa7d09C778215D2Cb6eBfB228",
+                "hasIcmEnabled": true,
+                "explorerUrl": "https://subnets-test.avax.network/c-chain",
+                "nativeTokenName": "Avalanche",
+                "nativeTokenSymbol": "AVAX",
+                "blockchainId": "0x7fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d5"
+            },
+            "tokenRemoteChain": {
+                "name": "Dispatch L1",
+                "isTestnet": true,
+                "logoUrl": "https://images.ctfassets.net/gcj8jwzm6086/60XrKdf99PqQKrHiuYdwTE/908622f5204311dbb11be9c6008ead44/Dispatch_Subnet_Logo.png",
+                "teleporterAddress": "0x253b2784c75e510dD0fF1da844684a1aC0aa5fcf",
+                "teleporterRegistryAddress": "0xF86Cb19Ad8405AEFa7d09C778215D2Cb6eBfB228",
+                "hasIcmEnabled": true,
+                "explorerUrl": "https://subnets-test.avax.network/dispatch",
+                "nativeTokenName": "DIS",
+                "nativeTokenSymbol": "DIS",
+                "blockchainId": "0x9f49313c3f022e9fe5b6e7c1d98f0f53d86e53456c5e075e1881cac1c15968e4"
+            }
+        }
+    ],
+    "rayId": "c9dc512d-f59c-4979-b45c-fd6218e29031"
+}
+
+show the list of token remote chainname with logo to select and then pass that selected chains 
