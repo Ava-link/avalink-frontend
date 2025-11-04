@@ -19,7 +19,7 @@ export default function Header({ darkMode, toggleDarkMode, connectedWallet, wall
   return (
     <>
       {/* Header */}
-        <header className={`relative z-10 flex items-center justify-between px-6 py-4 border-b ${darkMode ? 'border-gray-800/50 bg-gray-900/30' : 'border-gray-200 bg-white/30'} backdrop-blur-xl transition-colors duration-300`}>
+        <header className={`relative z-10 flex items-center justify-between px-6 py-4 border-b ${darkMode ? 'border-gray-800/50 bg-gray-900/30' : 'border-gray-200 bg-white/80'} backdrop-blur-xl transition-colors duration-300`}>
         <div className="flex items-center gap-8">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 flex items-center justify-center">
@@ -39,7 +39,7 @@ export default function Header({ darkMode, toggleDarkMode, connectedWallet, wall
             onClick={handleHome}
             className={`flex items-center gap-2 px-4 py-2 ${darkMode ? 'bg-gray-800/50 hover:bg-gray-700' : 'bg-gray-200 hover:bg-gray-300'} rounded-xl transition-colors`}
           >
-            <Home className="w-4 h-4" />
+            <Home className={`w-4 h-4 ${darkMode ? 'text-white' : 'text-gray-900'}`} />
             <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>Home</span>
           </button>
 
@@ -48,7 +48,7 @@ export default function Header({ darkMode, toggleDarkMode, connectedWallet, wall
             onClick={handleAddChain}
             className={`flex items-center gap-2 px-4 py-2 ${darkMode ? 'bg-gray-800/50 hover:bg-gray-700' : 'bg-gray-200 hover:bg-gray-300'} rounded-xl transition-colors`}
           >
-            <Plus className="w-4 h-4" />
+            <Plus className={`w-4 h-4 ${darkMode ? 'text-white' : 'text-gray-900'}`} />
             <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>Add Chain</span>
           </button>
 
