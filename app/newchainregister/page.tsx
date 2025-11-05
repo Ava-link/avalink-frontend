@@ -187,7 +187,7 @@ export default function NewChainRegisterPage() {
         throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
       }
 
-      const result = await response.json();
+      await response.json();
       showToastMessage('Bridge deployment initiated successfully!');
       
       // Reset form
