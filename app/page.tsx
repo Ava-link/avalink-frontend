@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { ChevronDown, X, Search, ArrowUpDown } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ChevronDown, X, Search } from 'lucide-react';
 import { useWallet } from './providers/WalletProvider';
 import { ethers } from 'ethers';
 import ERC20TokenHomeABI from '../abi/ERC20TokenHome.json';
@@ -34,6 +34,15 @@ interface ICTTChain {
   rpcUrl?: string;
 }
 
+interface TokenInfo {
+  id: string;
+  name: string;
+  symbol: string;
+  decimals: number;
+  address: string;
+  logoUrl: string | null;
+}
+
 interface ICTTSetup {
   id: string;
   setupName: string;
@@ -41,6 +50,8 @@ interface ICTTSetup {
   tokenRemoteAddress: string;
   tokenHomeChain: ICTTChain;
   tokenRemoteChain: ICTTChain;
+  tokenHomeToken: TokenInfo;
+  tokenRemoteToken: TokenInfo;
 }
 
 interface ChainOption {
@@ -193,6 +204,15 @@ export default function AvalinkMain() {
   const [availableTokens, setAvailableTokens] = useState<TokenOption[]>([]);
   const [loadingChains, setLoadingChains] = useState(true);
   const [loadingToChains, setLoadingToChains] = useState(false);
+  const [loadingTokens, setLoadingTokens] = useState(false);
+  const [icttSetups, setIcttSetups] = useState<ICTTSetup[]>([]);
+  
+  // Refs to track previous values and prevent infinite loops
+  const prevTokenAddressRef = useRef<string | null>(null);
+  const prevToChainIdRef = useRef<string | null>(null);
+  const isUpdatingTokenRef = useRef(false);
+  const prevFromChainIdRef = useRef<string | null>(null);
+  const isUpdatingFromChainRef = useRef(false);
 
   const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002';
 
@@ -212,44 +232,13 @@ export default function AvalinkMain() {
     return colors[hash % colors.length];
   };
 
-  // Helper function to get RPC URL for a chain by ID or name
-  const getChainRpcUrl = (chainId: string, chainName?: string): string | undefined => {
-    // Mapping of known chain IDs to RPC URLs
-    const rpcUrlMap: Record<string, string> = {
-      // Avalanche C-Chain Testnet
-      'a3a29584-dd34-418a-a524-63f844d95865': 'https://api.avax-test.network/ext/bc/C/rpc',
-      '43113': 'https://api.avax-test.network/ext/bc/C/rpc',
-      // Dispatch L1 Testnet
-      '03622042-2fb1-4cf8-90b8-8f8c2756daf1': 'https://subnets.avax.network/dispatch/testnet/rpc',
-      '779672': 'https://subnets.avax.network/dispatch/testnet/rpc',
-    };
-
-    // Try by chain ID first
-    if (rpcUrlMap[chainId]) {
-      return rpcUrlMap[chainId];
-    }
-
-    // Try by chain name as fallback
-    if (chainName) {
-      const nameMap: Record<string, string> = {
-        'Avalanche (C-Chain)': 'https://api.avax-test.network/ext/bc/C/rpc',
-        'Dispatch L1': 'https://subnets.avax.network/dispatch/testnet/rpc',
-        'Echo': 'https://subnets.avax.network/echo/testnet/rpc',
-      };
-      if (nameMap[chainName]) {
-        return nameMap[chainName];
-      }
-    }
-
-    return undefined;
-  };
 
   // Fetch all available chains
   useEffect(() => {
     const fetchChains = async () => {
       try {
         setLoadingChains(true);
-        const response = await fetch(`${backendUrl}/deploy/chains`);
+        const response = await fetch(`${backendUrl}/available/chains`);
         const data = await response.json();
         
         if (data.success && data.chains) {
@@ -259,7 +248,7 @@ export default function AvalinkMain() {
             symbol: chain.nativeTokenSymbol,
             logoUrl: chain.logoUrl,
             color: getColorFromName(chain.name),
-            rpcUrl: chain.rpcUrl,
+            rpcUrl: chain.explorerUrl,
           }));
           
           setAvailableChains(chains);
@@ -281,135 +270,230 @@ export default function AvalinkMain() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [backendUrl]);
 
-  // Fetch available "to chains" when "from chain" is selected
+  // Fetch available tokens when "from chain" is selected
   useEffect(() => {
-    const fetchToChains = async () => {
+    // Skip if we're in the middle of updating fromChain (to prevent loops)
+    if (isUpdatingFromChainRef.current) {
+      return;
+    }
+
+    const currentChainId = fromChain?.id || null;
+    
+    // Skip if chain ID hasn't changed
+    if (currentChainId === prevFromChainIdRef.current) {
+      return;
+    }
+
+    const fetchTokens = async () => {
       if (!fromChain) {
-        setAvailableToChains([]);
         setAvailableTokens([]);
+        setIcttSetups([]);
+        setFromToken(null);
+        setAvailableToChains([]);
+        setToChain(null);
+        prevFromChainIdRef.current = null;
+        return;
+      }
+
+      try {
+        setLoadingTokens(true);
+        const response = await fetch(`${backendUrl}/available/ictt/${fromChain.id}`);
+        const data = await response.json();
+        
+        if (data.success && data.icttSetup) {
+          // Store all ICTT setups for later filtering
+          setIcttSetups(data.icttSetup);
+          
+          // Always update fromChain with complete information from tokenHomeChain in API response
+          if (fromChain && data.icttSetup.length > 0) {
+            const firstSetup = data.icttSetup[0];
+            const tokenHomeChain = firstSetup.tokenHomeChain;
+            
+            // Always update fromChain with tokenHomeChain data, but only if rpcUrl actually changed to prevent loops
+            const needsUpdate = !fromChain.rpcUrl || 
+                               (tokenHomeChain.rpcUrl && fromChain.rpcUrl !== tokenHomeChain.rpcUrl);
+            
+            if (needsUpdate) {
+              isUpdatingFromChainRef.current = true;
+              
+              setFromChain((prevChain) => {
+                if (!prevChain) {
+                  isUpdatingFromChainRef.current = false;
+                  return prevChain;
+                }
+                
+                // Check if update is actually needed (rpcUrl changed)
+                if (tokenHomeChain.rpcUrl && prevChain.rpcUrl === tokenHomeChain.rpcUrl) {
+                  isUpdatingFromChainRef.current = false;
+                  return prevChain;
+                }
+                
+                // Update fromChain with all available data from tokenHomeChain
+                // fromChain IS tokenHomeChain, so use all data from API
+                const updatedChain = {
+                  ...prevChain,
+                  rpcUrl: tokenHomeChain.rpcUrl || prevChain.rpcUrl,
+                  // Ensure we have all the chain info from the API
+                  name: tokenHomeChain.name || prevChain.name,
+                  symbol: tokenHomeChain.nativeTokenSymbol || prevChain.symbol,
+                  logoUrl: tokenHomeChain.logoUrl || prevChain.logoUrl,
+                };
+                
+                console.log('Updated fromChain with tokenHomeChain:', {
+                  previous: prevChain,
+                  updated: updatedChain,
+                  tokenHomeChain: tokenHomeChain,
+                });
+                
+                // Reset flag after state update
+                setTimeout(() => {
+                  isUpdatingFromChainRef.current = false;
+                }, 0);
+                
+                return updatedChain;
+              });
+            }
+          }
+          
+          // Extract unique tokens from tokenHomeToken
+          const tokenMap = new Map<string, TokenOption>();
+          
+          data.icttSetup.forEach((setup: ICTTSetup) => {
+            const tokenKey = setup.tokenHomeToken.address.toLowerCase();
+            if (!tokenMap.has(tokenKey)) {
+              tokenMap.set(tokenKey, {
+                symbol: setup.tokenHomeToken.symbol,
+                name: setup.tokenHomeToken.name,
+                address: setup.tokenHomeToken.address,
+                color: getColorFromName(setup.tokenHomeToken.name),
+                icttSetupId: setup.id,
+                bridgeContractAddress: setup.tokenHomeAddress,
+              });
+            }
+          });
+          
+          const uniqueTokens = Array.from(tokenMap.values());
+          setAvailableTokens(uniqueTokens);
+          
+          // Reset token and destination chain when source chain changes
+          setFromToken(null);
+          setAvailableToChains([]);
+          setToChain(null);
+          // Reset refs
+          prevTokenAddressRef.current = null;
+          prevToChainIdRef.current = null;
+          isUpdatingTokenRef.current = false;
+          
+          // Update ref after processing
+          prevFromChainIdRef.current = currentChainId;
+        } else {
+          setAvailableTokens([]);
+          setIcttSetups([]);
+          setFromToken(null);
+          setAvailableToChains([]);
+          setToChain(null);
+          prevFromChainIdRef.current = null;
+        }
+      } catch (error) {
+        console.error('Error fetching tokens:', error);
+        setToastMessage('Failed to load available tokens. Please try again.');
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 3000);
+        setAvailableTokens([]);
+        setIcttSetups([]);
+        setFromToken(null);
+        setAvailableToChains([]);
+        setToChain(null);
+        prevFromChainIdRef.current = null;
+      } finally {
+        setLoadingTokens(false);
+      }
+    };
+
+    fetchTokens();
+    // Use chain ID instead of whole object to prevent loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromChain?.id, backendUrl]);
+
+  // Fetch available "to chains" when token is selected
+  useEffect(() => {
+    // Skip if we're in the middle of updating token (to prevent loops)
+    if (isUpdatingTokenRef.current) {
+      return;
+    }
+
+    const currentTokenAddress = fromToken?.address?.toLowerCase() || null;
+    
+    // Skip if token address hasn't changed
+    if (currentTokenAddress === prevTokenAddressRef.current) {
+      return;
+    }
+
+    const fetchToChains = async () => {
+      if (!fromToken || icttSetups.length === 0) {
+        setAvailableToChains([]);
+        setToChain(null);
+        prevTokenAddressRef.current = null;
         return;
       }
 
       try {
         setLoadingToChains(true);
-        const response = await fetch(`${backendUrl}/deploy/ictt/${fromChain.id}`);
-        const data = await response.json();
         
-        if (data.success && data.icttSetup) {
-          const toChains: ChainOption[] = [];
-          const tokens: TokenOption[] = [];
-          
-          const mockTokenAddress = '0x9dafF7B0c496591CC20Af1D8394FF1cB8696c9a7';
-          
-          // Update fromChain with RPC URL if missing
-          // Try to get it from available chains first, then from ICTT setup, then from mapping
-          if (fromChain && !fromChain.rpcUrl) {
-            setFromChain((prevChain) => {
-              if (!prevChain) return prevChain;
-              
-              // First, try to find it in availableChains
-              const chainWithRpc = availableChains.find(c => c.id === prevChain.id && c.rpcUrl);
-              if (chainWithRpc?.rpcUrl) {
-                return {
-                  ...prevChain,
-                  rpcUrl: chainWithRpc.rpcUrl,
-                };
-              }
-              
-              // Fallback: try to get from ICTT setup's tokenHomeChain
-              if (data.icttSetup.length > 0) {
-                const firstSetup = data.icttSetup[0];
-                if (firstSetup.tokenHomeChain.rpcUrl) {
-                  return {
-                    ...prevChain,
-                    rpcUrl: firstSetup.tokenHomeChain.rpcUrl,
-                  };
-                }
-              }
-              
-              // Final fallback: use chain mapping
-              const mappedRpcUrl = getChainRpcUrl(prevChain.id, prevChain.name);
-              if (mappedRpcUrl) {
-                return {
-                  ...prevChain,
-                  rpcUrl: mappedRpcUrl,
-                };
-              }
-              
-              return prevChain;
-            });
-          }
-          
-          // Process all ICTT setups for the selected source chain
-          // Since we're only using Mock Token, show all available bridges
-          data.icttSetup.forEach((setup: ICTTSetup) => {
-            // Add remote chain as a "to chain" option
-            toChains.push({
-              id: setup.tokenRemoteChain.blockchainId,
-              name: setup.tokenRemoteChain.name,
-              symbol: setup.tokenRemoteChain.nativeTokenSymbol,
-              logoUrl: setup.tokenRemoteChain.logoUrl,
-              color: getColorFromName(setup.tokenRemoteChain.name),
-              blockchainId: setup.tokenRemoteChain.blockchainId,
-              tokenRemoteAddress: setup.tokenRemoteAddress,
-              tokenHomeAddress: setup.tokenHomeAddress,
-              icttSetupId: setup.id,
-            });
-            
-            // Add token option (only MCT - Mock Token)
-            // tokenHomeAddress is the bridge contract, token address is the mock token
-            tokens.push({
-              symbol: 'MCT',
-              name: 'Mock Token',
-              address: mockTokenAddress, // Use the actual token address
-              color: getColorFromName('Mock Token'),
-              remoteAddress: setup.tokenRemoteAddress,
-              icttSetupId: setup.id,
-              bridgeContractAddress: setup.tokenHomeAddress, // Store bridge contract separately
-            });
+        // Filter ICTT setups that match the selected token
+        const matchingSetups = icttSetups.filter(
+          (setup: ICTTSetup) => setup.tokenHomeToken.address.toLowerCase() === fromToken.address.toLowerCase()
+        );
+        
+        const toChains: ChainOption[] = [];
+        
+        matchingSetups.forEach((setup: ICTTSetup) => {
+          toChains.push({
+            id: setup.tokenRemoteChain.blockchainId,
+            name: setup.tokenRemoteChain.name,
+            symbol: setup.tokenRemoteChain.nativeTokenSymbol,
+            logoUrl: setup.tokenRemoteChain.logoUrl,
+            color: getColorFromName(setup.tokenRemoteChain.name),
+            blockchainId: setup.tokenRemoteChain.blockchainId,
+            tokenRemoteAddress: setup.tokenRemoteAddress,
+            tokenHomeAddress: setup.tokenHomeAddress,
+            icttSetupId: setup.id,
+            rpcUrl: setup.tokenRemoteChain.rpcUrl,
           });
-          
-          // Remove duplicates based on blockchainId
-          const uniqueToChains = Array.from(
-            new Map(toChains.map(chain => [chain.blockchainId, chain])).values()
-          );
-          
-          // Remove duplicate tokens based on address (should only be one MCT token)
-          const uniqueTokens = Array.from(
-            new Map(tokens.map(token => [token.address.toLowerCase(), token])).values()
-          );
-          
-          setAvailableToChains(uniqueToChains);
-          setAvailableTokens(uniqueTokens);
-          
-          // Set default to chain if available
-          if (uniqueToChains.length > 0) {
-            setToChain(uniqueToChains[0]);
-          } else {
-            setToChain(null);
-          }
-          
-          // Set default token if available (should be only MCT)
-          if (uniqueTokens.length > 0) {
-            setFromToken(uniqueTokens[0]);
-          } else {
-            setFromToken(null);
-          }
+        });
+        
+        // Remove duplicates based on blockchainId
+        const uniqueToChains = Array.from(
+          new Map(toChains.map(chain => [chain.blockchainId, chain])).values()
+        );
+        
+        setAvailableToChains(uniqueToChains);
+        
+        // Set default to chain if available, but only if it's different from current
+        if (uniqueToChains.length > 0) {
+          setToChain((prevChain) => {
+            // Only update if the chain is different or doesn't exist
+            if (!prevChain || prevChain.blockchainId !== uniqueToChains[0].blockchainId) {
+              prevToChainIdRef.current = uniqueToChains[0].blockchainId || null;
+              return uniqueToChains[0];
+            }
+            return prevChain;
+          });
         } else {
-          setAvailableToChains([]);
-          setAvailableTokens([]);
           setToChain(null);
-          setFromToken(null);
+          prevToChainIdRef.current = null;
         }
+
+        // Update ref after processing
+        prevTokenAddressRef.current = currentTokenAddress;
       } catch (error) {
-        console.error('Error fetching ICTT setups:', error);
+        console.error('Error fetching destination chains:', error);
         setToastMessage('Failed to load available destination chains. Please try again.');
         setShowToast(true);
         setTimeout(() => setShowToast(false), 3000);
         setAvailableToChains([]);
-        setAvailableTokens([]);
         setToChain(null);
-        setFromToken(null);
+        prevTokenAddressRef.current = null;
       } finally {
         setLoadingToChains(false);
       }
@@ -417,7 +501,68 @@ export default function AvalinkMain() {
 
     fetchToChains();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fromChain, backendUrl]);
+  }, [fromToken?.address, icttSetups.length]);
+
+  // Update token's bridge contract and remote address when destination chain is selected
+  useEffect(() => {
+    if (!fromToken || !toChain || icttSetups.length === 0) {
+      return;
+    }
+
+    const currentToChainId = toChain.blockchainId || null;
+    
+    // Skip if toChain blockchainId hasn't changed
+    if (currentToChainId === prevToChainIdRef.current) {
+      return;
+    }
+
+    // Find the ICTT setup that matches both token and destination chain
+    const matchingSetup = icttSetups.find(
+      (setup: ICTTSetup) =>
+        setup.tokenHomeToken.address.toLowerCase() === fromToken.address.toLowerCase() &&
+        setup.tokenRemoteChain.blockchainId === toChain.blockchainId
+    );
+
+    if (matchingSetup) {
+      // Set flag to prevent the other useEffect from running
+      isUpdatingTokenRef.current = true;
+      
+      // Only update if values actually changed to prevent infinite loops
+      setFromToken((prevToken) => {
+        if (!prevToken) {
+          isUpdatingTokenRef.current = false;
+          return prevToken;
+        }
+        
+        // Check if update is needed
+        if (
+          prevToken.remoteAddress?.toLowerCase() === matchingSetup.tokenRemoteAddress.toLowerCase() &&
+          prevToken.bridgeContractAddress?.toLowerCase() === matchingSetup.tokenHomeAddress.toLowerCase() &&
+          prevToken.icttSetupId === matchingSetup.id
+        ) {
+          isUpdatingTokenRef.current = false;
+          return prevToken; // No change needed
+        }
+        
+        // Update ref after setting state
+        setTimeout(() => {
+          isUpdatingTokenRef.current = false;
+        }, 0);
+        
+        return {
+          ...prevToken,
+          remoteAddress: matchingSetup.tokenRemoteAddress,
+          bridgeContractAddress: matchingSetup.tokenHomeAddress,
+          icttSetupId: matchingSetup.id,
+        };
+      });
+
+      // Update ref
+      prevToChainIdRef.current = currentToChainId;
+    }
+    // Use stable identifiers instead of objects to prevent infinite loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toChain?.blockchainId, fromToken?.address, icttSetups.length]);
 
   // Theme handled in provider; keep to force re-render on toggle if needed
   useEffect(() => {}, [darkMode]);
@@ -452,26 +597,25 @@ export default function AvalinkMain() {
 
   // Disconnect wallet - handled by WalletProvider context
 
-  // Handle swap chains
-  const handleSwapTokens = () => {
-    if (!fromChain || !toChain) return;
-    const tempFromChain = fromChain;
-    const tempFromAmount = fromAmount;
-    setFromChain(toChain);
-    setFromAmount(toAmount);
-    setToChain(tempFromChain);
-    setToAmount(tempFromAmount);
-  };
-
   const selectChain = (chain: ChainOption, isFrom: boolean) => {
     if (isFrom) {
       setFromChain(chain);
       setShowFromModal(false);
-      // Reset toChain when fromChain changes
+      // Reset token and destination chain when source chain changes
+      setFromToken(null);
       setToChain(null);
+      setAvailableToChains([]);
+      // Reset refs
+      prevTokenAddressRef.current = null;
+      prevToChainIdRef.current = null;
+      isUpdatingTokenRef.current = false;
+      prevFromChainIdRef.current = null; // Reset to trigger fetch
+      isUpdatingFromChainRef.current = false;
     } else {
       setToChain(chain);
       setShowToModal(false);
+      // Reset ref when destination chain changes manually
+      prevToChainIdRef.current = chain.blockchainId || null;
     }
   };
 
@@ -493,16 +637,59 @@ export default function AvalinkMain() {
       return;
     }
 
-    // Get RPC URL - try from fromChain, or find it in availableChains, or use mapping
+    // Get RPC URL from stored ICTT setups (most reliable source from API)
+    // fromChain IS tokenHomeChain, so get rpcUrl from tokenHomeChain in ICTT setups
     let rpcUrl = fromChain.rpcUrl;
+    
+    console.log('Getting RPC URL:', {
+      fromChainRpcUrl: fromChain.rpcUrl,
+      fromChainId: fromChain.id,
+      fromChainName: fromChain.name,
+      icttSetupsCount: icttSetups.length,
+      fromTokenAddress: fromToken.address,
+    });
+    
+    // Always check ICTT setups first since fromChain IS tokenHomeChain
+    if (icttSetups.length > 0) {
+      // Find setup that matches the current token
+      const matchingSetup = icttSetups.find(
+        (setup: ICTTSetup) => 
+          setup.tokenHomeToken.address.toLowerCase() === fromToken.address.toLowerCase()
+      );
+      
+      console.log('Matching setup for token:', {
+        found: !!matchingSetup,
+        tokenHomeChainRpcUrl: matchingSetup?.tokenHomeChain.rpcUrl,
+        tokenHomeChain: matchingSetup?.tokenHomeChain,
+      });
+      
+      // Get RPC URL from tokenHomeChain (the source chain in the setup)
+      // fromChain IS tokenHomeChain, so this is the correct source
+      if (matchingSetup?.tokenHomeChain.rpcUrl) {
+        rpcUrl = matchingSetup.tokenHomeChain.rpcUrl;
+      } else if (icttSetups[0]?.tokenHomeChain.rpcUrl) {
+        // Fallback to first setup's tokenHomeChain
+        rpcUrl = icttSetups[0].tokenHomeChain.rpcUrl;
+      }
+      
+      // If still no rpcUrl, log all available setups for debugging
+      if (!rpcUrl) {
+        console.warn('No rpcUrl found in tokenHomeChain. All setups:', icttSetups.map(s => ({
+          tokenHomeChain: s.tokenHomeChain.name,
+          hasRpcUrl: !!s.tokenHomeChain.rpcUrl,
+          rpcUrl: s.tokenHomeChain.rpcUrl,
+          tokenHomeChainKeys: Object.keys(s.tokenHomeChain),
+        })));
+      }
+    }
+    
+    // Final fallback: try to find it in availableChains
     if (!rpcUrl) {
       const chainWithRpc = availableChains.find(c => c.id === fromChain.id && c.rpcUrl);
       rpcUrl = chainWithRpc?.rpcUrl;
     }
-    // Fallback to chain mapping if still not found
-    if (!rpcUrl) {
-      rpcUrl = getChainRpcUrl(fromChain.id, fromChain.name);
-    }
+    
+    console.log('Final RPC URL:', rpcUrl);
 
     if (!rpcUrl || !toChain.blockchainId || !toChain.tokenRemoteAddress || !toChain.tokenHomeAddress || !fromToken.bridgeContractAddress) {
       setToastMessage(`Missing bridge configuration. Please try again. fromChain.rpcUrl: ${rpcUrl || 'missing'}, toChain.blockchainId: ${toChain.blockchainId || 'missing'}, toChain.tokenRemoteAddress: ${toChain.tokenRemoteAddress || 'missing'}, toChain.tokenHomeAddress: ${toChain.tokenHomeAddress || 'missing'}, fromToken.bridgeContractAddress: ${fromToken.bridgeContractAddress || 'missing'}`);
@@ -530,6 +717,7 @@ export default function AvalinkMain() {
           'function approve(address spender, uint256 amount) external returns (bool)',
           'function allowance(address owner, address spender) external view returns (uint256)',
           'function decimals() external view returns (uint8)',
+          'function balanceOf(address account) external view returns (uint256)',
         ],
         signer
       );
@@ -544,22 +732,59 @@ export default function AvalinkMain() {
       const decimals = await tokenContract.decimals();
       const amount = ethers.parseUnits(fromAmount, decimals);
 
+      // Check user balance
+      const userAddress = await signer.getAddress();
+      const balance = await tokenContract.balanceOf(userAddress);
+      if (balance < amount) {
+        throw new Error(`Insufficient balance. You have ${ethers.formatUnits(balance, decimals)} tokens, but trying to send ${fromAmount}`);
+      }
+
       // Check and approve allowance - approve the bridge contract to spend tokens
       const bridgeContractAddress = fromToken.bridgeContractAddress!;
-      const allowance = await tokenContract.allowance(await signer.getAddress(), bridgeContractAddress);
+      const allowance = await tokenContract.allowance(userAddress, bridgeContractAddress);
       if (allowance < amount) {
         setToastMessage('Approving token spending...');
-        const approveTx = await tokenContract.approve(bridgeContractAddress, amount);
-        await approveTx.wait();
-        setToastMessage('Approval confirmed. Sending tokens...');
+        try {
+          const approveTx = await tokenContract.approve(bridgeContractAddress, amount);
+          await approveTx.wait();
+          setToastMessage('Approval confirmed. Sending tokens...');
+        } catch (approveError: unknown) {
+          console.error('Approval error:', approveError);
+          const errorMessage = approveError instanceof Error 
+            ? approveError.message 
+            : (approveError && typeof approveError === 'object' && 'reason' in approveError && typeof approveError.reason === 'string')
+            ? approveError.reason
+            : 'Unknown error';
+          throw new Error(`Failed to approve tokens: ${errorMessage}`);
+        }
       }
 
       // Prepare bridge transaction
-      const destinationBlockchainID = ethers.zeroPadValue(toChain.blockchainId!, 32);
+      // Ensure blockchainId is exactly 32 bytes (0x-prefixed hex string)
+      const blockchainIdHex = toChain.blockchainId!.startsWith('0x') 
+        ? toChain.blockchainId! 
+        : '0x' + toChain.blockchainId!;
+      
+      // Convert to bytes, pad to 32 bytes, then convert back to hex
+      const bytes = ethers.getBytes(blockchainIdHex);
+      if (bytes.length > 32) {
+        throw new Error(`BlockchainId too long: ${bytes.length} bytes. Maximum is 32 bytes.`);
+      }
+      
+      // Pad to 32 bytes (zeros on the left)
+      const paddedBytes = new Uint8Array(32);
+      paddedBytes.set(bytes, 32 - bytes.length);
+      const destinationBlockchainID = ethers.hexlify(paddedBytes);
+
+      // Validate it's exactly 32 bytes (66 chars with 0x)
+      if (destinationBlockchainID.length !== 66) {
+        throw new Error(`Invalid blockchainId format: ${toChain.blockchainId}. Must be 32 bytes (64 hex chars). Got: ${destinationBlockchainID} (${destinationBlockchainID.length} chars)`);
+      }
+
       const destinationTokenTransferrerAddress = toChain.tokenRemoteAddress;
-      const recipient = await signer.getAddress();
+      const recipient = userAddress;
       const primaryFeeTokenAddress = ethers.ZeroAddress; // Use native token for fees
-      const primaryFee = ethers.parseEther('0'); // No fee for now
+      const primaryFee = BigInt(0); // No fee for now
       const secondaryFee = BigInt(0);
       const requiredGasLimit = BigInt(100000); // Gas limit
       const multiHopFallback = ethers.ZeroAddress;
@@ -575,7 +800,57 @@ export default function AvalinkMain() {
         multiHopFallback,
       };
 
+      // Validate addresses
+      if (!ethers.isAddress(destinationTokenTransferrerAddress)) {
+        throw new Error(`Invalid destination token address: ${destinationTokenTransferrerAddress}`);
+      }
+      if (!ethers.isAddress(recipient)) {
+        throw new Error(`Invalid recipient address: ${recipient}`);
+      }
+
+      console.log('Bridge transaction parameters:', {
+        destinationBlockchainID,
+        destinationTokenTransferrerAddress,
+        recipient,
+        amount: amount.toString(),
+        amountFormatted: fromAmount,
+      });
+
       // Send bridge transaction - use the bridge contract address
+      // First, try to estimate gas to get better error messages
+      try {
+        const gasEstimate = await bridgeContract.send.estimateGas(sendInput, amount);
+        console.log('Gas estimate:', gasEstimate.toString());
+      } catch (estimateError: unknown) {
+        console.error('Gas estimation error:', estimateError);
+        // Try to decode the error if possible
+        if (estimateError && typeof estimateError === 'object' && 'data' in estimateError) {
+          try {
+            // Attempt to decode error
+            const errorData = estimateError as { data: unknown };
+            if (errorData.data && typeof errorData.data === 'string') {
+              const decodedError = bridgeContract.interface.parseError(errorData.data);
+              throw new Error(`Transaction would fail: ${decodedError?.name || 'Unknown error'}`);
+            }
+          } catch {
+            // If we can't decode, provide a more helpful message
+            const errorMessage = estimateError instanceof Error 
+              ? estimateError.message 
+              : (estimateError && typeof estimateError === 'object' && 'reason' in estimateError && typeof estimateError.reason === 'string')
+              ? estimateError.reason
+              : 'Please check your inputs and try again';
+            throw new Error(`Transaction would fail: ${errorMessage}`);
+          }
+        }
+        const errorMessage = estimateError instanceof Error 
+          ? estimateError.message 
+          : (estimateError && typeof estimateError === 'object' && 'reason' in estimateError && typeof estimateError.reason === 'string')
+          ? estimateError.reason
+          : 'Please check your inputs and try again';
+        throw new Error(`Transaction would fail: ${errorMessage}`);
+      }
+
+      setToastMessage('Sending bridge transaction...');
       const tx = await bridgeContract.send(sendInput, amount);
       setToastMessage(`Transaction submitted: ${tx.hash}`);
       
@@ -660,7 +935,7 @@ export default function AvalinkMain() {
                       className={`flex flex-col items-center gap-1 px-3 py-2 ${darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'} rounded-xl transition-colors flex-shrink-0`}
                     >
                       {chain.logoUrl ? (
-                        <Image src={chain.logoUrl} alt={chain.name} className="w-8 h-8 rounded-full object-cover" />
+                        <Image src={chain.logoUrl} alt={chain.name} width={32} height={32} className="w-8 h-8 rounded-full object-cover" />
                       ) : (
                         <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${chain.color} flex items-center justify-center text-white text-xs font-bold`}>
                           {chain.symbol.slice(0, 2)}
@@ -680,7 +955,7 @@ export default function AvalinkMain() {
                       className={`w-full flex items-center gap-3 p-3 ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-100'} rounded-xl transition-colors`}
                     >
                       {chain.logoUrl ? (
-                        <Image src={chain.logoUrl} alt={chain.name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                        <Image src={chain.logoUrl} alt={chain.name} width={40} height={40} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
                       ) : (
                         <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${chain.color} flex items-center justify-center text-white font-bold text-sm flex-shrink-0`}>
                           {chain.symbol.slice(0, 2)}
@@ -826,34 +1101,6 @@ export default function AvalinkMain() {
         </div>
 
         <div className="w-full max-w-md">
-          {/* Token Selection Dropdown */}
-          <button
-            onClick={() => setShowTokenModal(true)}
-            disabled={availableTokens.length === 0}
-            className={`w-full ${darkMode ? 'bg-gray-900/50 hover:bg-gray-900/70' : 'bg-white/50 hover:bg-white/70'} backdrop-blur-xl rounded-3xl border ${darkMode ? 'border-gray-800/50' : 'border-gray-200'} p-4 shadow-2xl transition-colors duration-300 mb-4 flex items-center justify-between ${availableTokens.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
-          >
-            <div className="flex items-center gap-3">
-              {fromToken ? (
-                <>
-                  <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${fromToken.color} flex items-center justify-center text-white text-lg font-bold`}>
-                    {fromToken.symbol.slice(0, 2)}
-                  </div>
-                  <div className="text-left">
-                    <div className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{fromToken.symbol}</div>
-                    <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{fromToken.name}</div>
-                  </div>
-                </>
-              ) : (
-                <div className="text-left">
-                  <div className={`text-lg font-semibold ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                    {availableTokens.length === 0 ? 'Select chain first' : 'Select token'}
-                  </div>
-                </div>
-              )}
-            </div>
-            <ChevronDown className={`w-6 h-6 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
-          </button>
-
           {/* Swap Card */}
           <div className={`${darkMode ? 'bg-gray-900/50' : 'bg-white/50'} backdrop-blur-xl rounded-3xl border ${darkMode ? 'border-gray-800/50' : 'border-gray-200'} p-3 shadow-2xl transition-colors duration-300`}>
             {/* From Token Input */}
@@ -876,7 +1123,7 @@ export default function AvalinkMain() {
                   {fromChain ? (
                     <>
                       {fromChain.logoUrl ? (
-                        <Image src={fromChain.logoUrl} alt={fromChain.name} className="w-6 h-6 rounded-full object-cover" />
+                        <Image src={fromChain.logoUrl} alt={fromChain.name} width={24} height={24} className="w-6 h-6 rounded-full object-cover" />
                       ) : (
                         <div className={`w-6 h-6 rounded-full bg-gradient-to-br ${fromChain.color} flex items-center justify-center text-white text-xs font-bold`}>
                           {fromChain.symbol.slice(0, 2)}
@@ -894,18 +1141,48 @@ export default function AvalinkMain() {
               </div>
             </div>
 
+            {/* Token Selection Dropdown */}
+            <div className="my-3">
+              <button
+                onClick={() => setShowTokenModal(true)}
+                disabled={availableTokens.length === 0}
+                className={`w-full ${darkMode ? 'bg-gray-800/50 hover:bg-gray-800/70' : 'bg-gray-100/50 hover:bg-gray-100/70'} backdrop-blur-xl rounded-2xl border ${darkMode ? 'border-gray-700/50' : 'border-gray-200'} p-4 transition-colors duration-300 flex items-center justify-between ${availableTokens.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <div className="flex items-center gap-3">
+                  {fromToken ? (
+                    <>
+                      <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${fromToken.color} flex items-center justify-center text-white text-lg font-bold`}>
+                        {fromToken.symbol.slice(0, 2)}
+                      </div>
+                      <div className="text-left">
+                        <div className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{fromToken.symbol}</div>
+                        <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{fromToken.name}</div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-left">
+                      <div className={`text-lg font-semibold ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {loadingTokens ? 'Loading tokens...' : availableTokens.length === 0 && fromChain ? 'No tokens available' : availableTokens.length === 0 ? 'Select chain first' : 'Select token'}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <ChevronDown className={`w-6 h-6 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+              </button>
+            </div>
+
             {/* Swap Button */}
-            <div className="flex justify-center items-center -my-4 relative z-10">
+            {/* <div className="flex justify-center items-center -my-4 relative z-10">
               <button
                 onClick={handleSwapTokens}
                 className={`p-2 ${darkMode ? 'bg-gray-800/80 hover:bg-gray-700' : 'bg-gray-200 hover:bg-gray-300'} border-6 ${darkMode ? 'border-gray-900' : 'border-white'} rounded-xl transition-all`}
               >
                 <ArrowUpDown className={`w-5 h-5 ${darkMode ? 'text-white' : 'text-gray-900'}`} />
               </button>
-            </div>
+            </div> */}
 
             {/* To Token Input */}
-            <div className={`${darkMode ? 'bg-gray-800/50' : 'bg-gray-100/50'} rounded-2xl p-4 mb-3 transition-colors duration-300`}>
+            <div className={`${darkMode ? 'bg-gray-800/50' : 'bg-gray-100/50'} mt-1 rounded-2xl p-4 mb-3 transition-colors duration-300`}>
               <div className="flex items-center justify-between mb-2">
                 <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Destination Chain</span>
               </div>
@@ -921,7 +1198,7 @@ export default function AvalinkMain() {
                   {toChain ? (
                     <>
                       {toChain.logoUrl ? (
-                        <Image src={toChain.logoUrl} alt={toChain.name} className="w-6 h-6 rounded-full object-cover" />
+                        <Image src={toChain.logoUrl} alt={toChain.name} width={24} height={24} className="w-6 h-6 rounded-full object-cover" />
                       ) : (
                         <div className={`w-6 h-6 rounded-full bg-gradient-to-br ${toChain.color} flex items-center justify-center text-white text-xs font-bold`}>
                           {toChain.symbol.slice(0, 2)}
@@ -931,7 +1208,7 @@ export default function AvalinkMain() {
                     </>
                   ) : (
                     <span className={`font-semibold ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                      {loadingToChains ? 'Loading...' : availableToChains.length === 0 ? 'Select source chain' : 'Select chain'}
+                      {loadingToChains ? 'Loading...' : availableToChains.length === 0 && fromToken ? 'No chains available' : availableToChains.length === 0 ? (fromToken ? 'No chains available' : 'Select token first') : 'Select chain'}
                     </span>
                   )}
                   <ChevronDown className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
