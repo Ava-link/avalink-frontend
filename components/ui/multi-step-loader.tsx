@@ -2,6 +2,7 @@
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "motion/react";
 import { useState, useEffect } from "react";
+import { IconSquareRoundedX } from "@tabler/icons-react";
 
 const CheckIcon = ({ className }: { className?: string }) => {
   return (
@@ -42,12 +43,25 @@ type LoadingState = {
 const LoaderCore = ({
   loadingStates,
   value = 0,
+  themeMode = "dark",
 }: {
   loadingStates: LoadingState[];
   value?: number;
+  themeMode?: "light" | "dark";
 }) => {
+  const activeTextClass =
+    themeMode === "dark" ? "text-lime-400" : "text-lime-600";
+  const neutralTextClass =
+    themeMode === "dark" ? "text-gray-400" : "text-gray-500";
+  const upcomingTextClass =
+    themeMode === "dark" ? "text-gray-500" : "text-gray-400";
+  const completedIconClass =
+    themeMode === "dark" ? "text-gray-500" : "text-gray-400";
+  const upcomingIconClass =
+    themeMode === "dark" ? "text-gray-600" : "text-gray-300";
+
   return (
-    <div className="flex relative justify-start max-w-xl mx-auto flex-col mt-40">
+    <div className="flex relative justify-start max-w-xl mx-auto flex-col mt-4">
       {loadingStates.map((loadingState, index) => {
         const distance = Math.abs(index - value);
         const opacity = Math.max(1 - distance * 0.2, 0); // Minimum opacity is 0, keep it 0.2 if you're sane.
@@ -56,28 +70,30 @@ const LoaderCore = ({
           <motion.div
             key={index}
             className={cn("text-left flex gap-2 mb-4")}
-            initial={{ opacity: 0, y: -(value * 40) }}
-            animate={{ opacity: opacity, y: -(value * 40) }}
-            transition={{ duration: 0.5 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity, scale: value === index ? 1 : 0.98 }}
+            transition={{ duration: 0.4, ease: "easeInOut" }}
           >
             <div>
               {index > value && (
-                <CheckIcon className="text-black dark:text-white" />
+                <CheckIcon className={cn(upcomingIconClass)} />
               )}
               {index <= value && (
                 <CheckFilled
                   className={cn(
-                    "text-black dark:text-white",
-                    value === index &&
-                      "text-black dark:text-lime-500 opacity-100"
+                    index === value ? activeTextClass : completedIconClass,
+                    index === value && "opacity-100"
                   )}
                 />
               )}
             </div>
             <span
               className={cn(
-                "text-black dark:text-white",
-                value === index && "text-black dark:text-lime-500 opacity-100"
+                index === value
+                  ? `${activeTextClass} opacity-100`
+                  : index < value
+                  ? neutralTextClass
+                  : upcomingTextClass
               )}
             >
               {loadingState.text}
@@ -94,19 +110,40 @@ export const MultiStepLoader = ({
   loading,
   duration = 2000,
   loop = true,
+  manualStepIndex,
+  onClose,
+  variant = "fullscreen",
+  className,
+  themeMode = "dark",
 }: {
   loadingStates: LoadingState[];
   loading?: boolean;
   duration?: number;
   loop?: boolean;
+  manualStepIndex?: number;
+  onClose?: () => void;
+  variant?: "fullscreen" | "inline" | "floating";
+  className?: string;
+  themeMode?: "light" | "dark";
 }) => {
   const [currentState, setCurrentState] = useState(0);
+  const isManual = typeof manualStepIndex === "number";
 
   useEffect(() => {
     if (!loading) {
       setCurrentState(0);
       return;
     }
+    if (isManual) {
+      setCurrentState(
+        Math.max(
+          0,
+          Math.min(manualStepIndex ?? 0, Math.max(loadingStates.length - 1, 0))
+        )
+      );
+      return;
+    }
+
     const timeout = setTimeout(() => {
       setCurrentState((prevState) =>
         loop
@@ -118,7 +155,65 @@ export const MultiStepLoader = ({
     }, duration);
 
     return () => clearTimeout(timeout);
-  }, [currentState, loading, loop, loadingStates.length, duration]);
+  }, [
+    currentState,
+    duration,
+    isManual,
+    loading,
+    loadingStates.length,
+    loop,
+    manualStepIndex,
+  ]);
+
+  useEffect(() => {
+    if (!loading && !isManual) {
+      setCurrentState(0);
+    }
+  }, [isManual, loading]);
+
+
+  if (variant === "inline") {
+    return (
+      <AnimatePresence mode="wait">
+        {loading && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 12 }}
+            className={cn("w-full", className)}
+          >
+            <LoaderCore
+              value={currentState}
+              loadingStates={loadingStates}
+              themeMode={themeMode}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    );
+  }
+
+  if (variant === "floating") {
+    return (
+      <AnimatePresence mode="wait">
+        {loading && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className={cn("fixed bottom-6 right-6 z-[110] w-full max-w-sm", className)}
+          >
+            <LoaderCore
+              value={currentState}
+              loadingStates={loadingStates}
+              themeMode={themeMode}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    );
+  }
+
   return (
     <AnimatePresence mode="wait">
       {loading && (
@@ -132,13 +227,13 @@ export const MultiStepLoader = ({
           exit={{
             opacity: 0,
           }}
-          className="w-full h-full fixed inset-0 z-[100] flex items-center justify-center backdrop-blur-2xl"
+          className={className}
         >
-          <div className="h-96  relative">
-            <LoaderCore value={currentState} loadingStates={loadingStates} />
-          </div>
-
-          <div className="bg-gradient-to-t inset-x-0 z-20 bottom-0 bg-white dark:bg-black h-full absolute [mask-image:radial-gradient(900px_at_center,transparent_30%,white)]" />
+          <LoaderCore
+            value={currentState}
+            loadingStates={loadingStates}
+            themeMode={themeMode}
+          />
         </motion.div>
       )}
     </AnimatePresence>
