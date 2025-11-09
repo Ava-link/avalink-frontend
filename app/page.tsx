@@ -7,6 +7,8 @@ import { ethers } from 'ethers';
 import ERC20TokenHomeABI from '../abi/ERC20TokenHome.json';
 import TeleporterMessengerABI from '../abi/TeleporterMessenger.json';
 import Image from 'next/image';
+import { MultiStepLoader as Loader } from '@/components/ui/multi-step-loader';
+
 // API Types
 interface Chain {
   id: string;
@@ -83,111 +85,39 @@ interface TokenOption {
   icttSetupId?: string;
   isHomeChainToken?: boolean;
 }
-const FloatingIcon = ({
-  symbol,
-  delay,
-  x,
-  y,
-  size = 64,
-  textSize = 16,
-  color,
-}: {
-  symbol: string;
-  delay: string;
-  x: string;
-  y: string;
-  size?: number;
-  textSize?: number;
-  color: string;
-}) => (
-  <div
-    className="absolute opacity-30 hover:opacity-100 transition-all duration-300 group cursor-pointer"
-    style={{
-      left: x,
-      top: y,
-      animation: `float 20s ease-in-out infinite`,
-      animationDelay: delay,
-      filter: 'blur(1px)',
-    }}
-  >
-    <div
-      className={`rounded-full bg-gradient-to-br ${color} flex items-center justify-center font-bold shadow-lg transition-all duration-300 group-hover:blur-none`}
-      style={{
-        width: `${size}px`,
-        height: `${size}px`,
-        fontSize: `${textSize}px`,
-        color: 'white',
-        filter: 'inherit',
-      }}
-    >
-      {symbol}
-    </div>
-  </div>
-);
 
-// Toast component
-const Toast = ({ message, isVisible, onClose }: { message: string, isVisible: boolean, onClose: () => void }) => {
-  if (!isVisible) return null;
-  
-  return (
-    <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-6 py-3 rounded-xl shadow-lg z-50 flex items-center gap-2">
-      <span>{message}</span>
-      <button onClick={onClose} className="ml-2">
-        <X className="w-4 h-4" />
-      </button>
-    </div>
-  );
-};
+const DEFAULT_BRIDGE_LOADING_STATES = [
+  { text: 'Bridge transaction initiated' },
+  { text: 'Token allowance checked' },
+  { text: 'Bridge transaction submitted' },
+  { text: 'Bridge transaction confirmed' },
+];
 
-// Wallet Connection Modal
-const WalletModal = ({ isOpen, onClose, onConnect }: { isOpen: boolean, onClose: () => void, onConnect: (walletType: string) => void }) => {
-  if (!isOpen) return null;
+const cloneBridgeLoaderStates = () =>
+  DEFAULT_BRIDGE_LOADING_STATES.map((state) => ({ ...state }));
 
-  const wallets = [
-    {
-      name: 'MetaMask',
-      icon: '🦊',
-      description: 'Connect using MetaMask browser extension',
-      id: 'metamask'
-    },
-    {
-      name: 'Core Wallet',
-      icon: '💎',
-      description: 'Connect using Core Wallet',
-      id: 'core'
-    }
-  ];
+const shortenHash = (hash: string) =>
+  hash.length <= 10 ? hash : `${hash.slice(0, 6)}...${hash.slice(-4)}`;
 
-  return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 rounded-3xl w-full max-w-md shadow-2xl border border-gray-800">
-        <div className="flex items-center justify-between p-5 border-b border-gray-800">
-          <h3 className="text-lg font-semibold text-white">Connect Wallet</h3>
-          <button onClick={onClose} className="p-2 hover:bg-gray-800 rounded-xl transition-colors">
-            <X className="w-5 h-5 text-gray-400" />
-          </button>
-        </div>
-        
-        <div className="p-4">
-          <div className="space-y-3">
-            {wallets.map((wallet) => (
-              <button
-                key={wallet.id}
-                onClick={() => onConnect(wallet.id)}
-                className="w-full flex items-center gap-4 p-4 bg-gray-800 hover:bg-gray-700 rounded-xl transition-colors"
-              >
-                <div className="text-2xl">{wallet.icon}</div>
-                <div className="flex-1 text-left">
-                  <div className="text-white font-medium">{wallet.name}</div>
-                  <div className="text-gray-500 text-sm">{wallet.description}</div>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+const isUserRejectedRequest = (error: unknown): boolean => {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const possibleCode = (error as { code?: number | string }).code;
+  const normalizedCode =
+    typeof possibleCode === 'string' ? possibleCode.toLowerCase() : possibleCode;
+
+  if (
+    normalizedCode === 4001 ||
+    normalizedCode === '4001' ||
+    normalizedCode === 'action_rejected'
+  ) {
+    return true;
+  }
+
+  const message = (error as { message?: string }).message ?? '';
+  return typeof message === 'string' && message.toLowerCase().includes('user rejected');
 };
 
 const MAX_TRANSFER_AMOUNT = 1_000_000;
@@ -202,9 +132,9 @@ export default function AvalinkMain() {
   const [showFromModal, setShowFromModal] = useState(false);
   const [showToModal, setShowToModal] = useState(false);
   const [showTokenModal, setShowTokenModal] = useState(false);
-  const [showToast, setShowToast] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
-  const [showWalletModal, setShowWalletModal] = useState(false);
+  const [bridgeLoaderOpen, setBridgeLoaderOpen] = useState(false);
+  const [bridgeLoaderStep, setBridgeLoaderStep] = useState(0);
+  const [bridgeLoaderStates, setBridgeLoaderStates] = useState(cloneBridgeLoaderStates);
   
   // API data states
   const [availableChains, setAvailableChains] = useState<ChainOption[]>([]);
@@ -228,6 +158,50 @@ export default function AvalinkMain() {
   const [tokenBalance, setTokenBalance] = useState<bigint | null>(null);
   const [tokenDecimals, setTokenDecimals] = useState<number | null>(null);
   const [requiredGasLimit, setRequiredGasLimit] = useState<string>('250000');
+  const bridgeLoaderStepRef = useRef(0);
+
+  useEffect(() => {
+    bridgeLoaderStepRef.current = bridgeLoaderStep;
+  }, [bridgeLoaderStep]);
+
+  const resetBridgeLoader = useCallback(() => {
+    if (loaderTimeoutRef.current) {
+      clearTimeout(loaderTimeoutRef.current);
+      loaderTimeoutRef.current = null;
+    }
+    setBridgeLoaderOpen(false);
+    setBridgeLoaderStep(0);
+    setBridgeLoaderStates(cloneBridgeLoaderStates());
+  }, []);
+
+  const updateLoaderState = useCallback((index: number, text: string) => {
+    setBridgeLoaderStates((prev) =>
+      prev.map((state, idx) => (idx === index ? { text } : state))
+    );
+  }, []);
+
+  const loaderTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const scheduleLoaderReset = useCallback(
+    (delay: number) => {
+      if (loaderTimeoutRef.current) {
+        clearTimeout(loaderTimeoutRef.current);
+      }
+      loaderTimeoutRef.current = setTimeout(() => {
+        resetBridgeLoader();
+        loaderTimeoutRef.current = null;
+      }, delay);
+    },
+    [resetBridgeLoader]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (loaderTimeoutRef.current) {
+        clearTimeout(loaderTimeoutRef.current);
+      }
+    };
+  }, []);
   
   // Refs to track previous values and prevent infinite loops
   const prevTokenAddressRef = useRef<string | null>(null);
@@ -335,9 +309,7 @@ export default function AvalinkMain() {
         }
       } catch (error) {
         console.error('Error fetching chains:', error);
-        setToastMessage('Failed to load chains. Please try again.');
-        setShowToast(true);
-        setTimeout(() => setShowToast(false), 3000);
+        setLocalError('Failed to load chains. Please try again.');
       } finally {
         setLoadingChains(false);
       }
@@ -501,9 +473,7 @@ export default function AvalinkMain() {
         }
       } catch (error) {
         console.error('Error fetching tokens:', error);
-        setToastMessage('Failed to load available tokens. Please try again.');
-        setShowToast(true);
-        setTimeout(() => setShowToast(false), 3000);
+        setLocalError('Failed to load available tokens. Please try again.');
         setAvailableTokens([]);
         setIcttSetups([]);
         setFromToken(null);
@@ -615,11 +585,9 @@ export default function AvalinkMain() {
 
         // Update ref after processing
         prevTokenAddressRef.current = currentTokenAddress;
-      } catch (error) {
-        console.error('Error fetching destination chains:', error);
-        setToastMessage('Failed to load available destination chains. Please try again.');
-        setShowToast(true);
-        setTimeout(() => setShowToast(false), 3000);
+    } catch (error) {
+      console.error('Error fetching destination chains:', error);
+      setLocalError('Failed to load available destination chains. Please try again.');
         setAvailableToChains([]);
         setToChain(null);
         prevTokenAddressRef.current = null;
@@ -732,28 +700,12 @@ export default function AvalinkMain() {
   // Auto-calculate to amount when from amount changes
   useEffect(() => {
     if (fromAmount && !isNaN(parseFloat(fromAmount))) {
-      const calculatedAmount = Math.max(0, parseFloat(fromAmount) - (parseFloat(fromAmount) * 0.05));
-      setToAmount(calculatedAmount.toString());
+      // const calculatedAmount = Math.max(0, parseFloat(fromAmount) - (parseFloat(fromAmount) * 0.05));
+      setToAmount(fromAmount);
     } else {
-      setToAmount('');
+      setToAmount('0');
     }
   }, [fromAmount]);
-
-  // Handle wallet connection via context
-  const connectWallet = async (walletType: string) => {
-    try {
-      await connect(walletType as 'metamask' | 'core');
-      setShowWalletModal(false);
-      setToastMessage(`Connected to ${walletType === 'core' ? 'Core Wallet' : 'MetaMask'}`);
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 3000);
-    } catch (error) {
-      console.error('Connection error:', error);
-      setToastMessage('Connection failed. Please try again.');
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 3000);
-    }
-  };
 
   // Disconnect wallet - handled by WalletProvider context
 
@@ -850,26 +802,21 @@ export default function AvalinkMain() {
     });
 
     if (!connectedWallet) {
-      setLocalError('Wallet not connected');
-      setShowWalletModal(true);
+      const message = 'Wallet not connected';
+      setLocalError(message);
+      await connect().catch(() => {});
       return;
     }
     
     if (!fromToken || !fromChain || !toChain || !fromAmount || parseFloat(fromAmount) <= 0) {
       const validationMessage = 'Please select chain, token, and enter an amount';
       setLocalError(validationMessage);
-      setToastMessage(validationMessage);
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 3000);
       return;
     }
 
     if (!walletAddress) {
       const walletMessage = 'Unable to resolve wallet address. Please reconnect your wallet.';
       setLocalError(walletMessage);
-      setToastMessage(walletMessage);
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 3000);
       return;
     }
 
@@ -898,9 +845,6 @@ export default function AvalinkMain() {
     if (!rpcUrl || !toChain.blockchainId || !toChain.tokenRemoteAddress || !toChain.tokenHomeAddress || !fromToken.bridgeContractAddress) {
       const configMessage = `Missing bridge configuration. Please try again. fromChain.rpcUrl: ${rpcUrl || 'missing'}, toChain.blockchainId: ${toChain.blockchainId || 'missing'}, toChain.tokenRemoteAddress: ${toChain.tokenRemoteAddress || 'missing'}, toChain.tokenHomeAddress: ${toChain.tokenHomeAddress || 'missing'}, fromToken.bridgeContractAddress: ${fromToken.bridgeContractAddress || 'missing'}`;
       setLocalError(configMessage);
-      setToastMessage(configMessage);
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 3000);
       return;
     }
 
@@ -912,6 +856,9 @@ export default function AvalinkMain() {
     setLastSendTxDetails(null);
     setMessageID(null);
 
+    let bridgeError: Error | null = null;
+    let bridgeCompleted = false;
+
     try {
       console.log('Starting handleSend', {
         fromAmount,
@@ -921,8 +868,16 @@ export default function AvalinkMain() {
         walletAddress,
       });
       setLastSendTxDetails({ source: { initiatedAt: Date.now() } });
-      setToastMessage('Initiating bridge transaction...');
-      setShowToast(true);
+      resetBridgeLoader();
+      const initialLoaderStates = cloneBridgeLoaderStates();
+      initialLoaderStates[0] = {
+        text: fromChain?.name
+          ? `Bridge transaction initiated on ${fromChain.name}`
+          : 'Bridge transaction initiated',
+      };
+      setBridgeLoaderStates(initialLoaderStates);
+      setBridgeLoaderStep(0);
+      setBridgeLoaderOpen(true);
 
       // Get signer from wallet
       if (!provider || !signer) {
@@ -942,24 +897,106 @@ export default function AvalinkMain() {
       });
 
       if (fromChain.chainId) {
-        try {
-          const expectedChainId = BigInt(fromChain.chainId);
-          if (expectedChainId !== network.chainId) {
-            const mismatchMessage =
-              `Wallet is connected to chainId ${network.chainId} (hex 0x${network.chainId.toString(16)}) ` +
-              `but ${fromChain.name} expects chainId ${expectedChainId} (hex 0x${expectedChainId.toString(16)}). ` +
-              'Switch networks in your wallet and try again.';
-            console.error('Network verification failed:', mismatchMessage);
-            throw new Error(mismatchMessage);
+        const expectedChainId = Number(fromChain.chainId);
+        if (!Number.isNaN(expectedChainId) && expectedChainId !== network.chainId) {
+          const expectedChainIdHex = ethers.utils.hexValue(expectedChainId);
+          console.warn('Network mismatch detected. Attempting automatic switch...', {
+            walletChainId: network.chainId,
+            walletChainIdHex: ethers.utils.hexValue(network.chainId),
+            expectedChainId,
+            expectedChainIdHex,
+          });
+
+          const nativeCurrencyName =
+            activeIcttSetup?.tokenHomeChain.nativeTokenName ??
+            activeIcttSetup?.tokenRemoteChain.nativeTokenName ??
+            fromChain.symbol ??
+            'AVAX';
+          const nativeCurrencySymbol =
+            activeIcttSetup?.tokenHomeChain.nativeTokenSymbol ??
+            activeIcttSetup?.tokenRemoteChain.nativeTokenSymbol ??
+            fromChain.symbol ??
+            'AVAX';
+          const explorerUrl =
+            activeIcttSetup?.tokenHomeChain.explorerUrl ??
+            activeIcttSetup?.tokenRemoteChain.explorerUrl;
+
+          const attemptChainAddition = async () => {
+            if (!rpcUrl) {
+              throw new Error(
+                `Unable to add network ${fromChain.name}. Missing rpcUrl from configuration.`
+              );
+            }
+
+            const addPayload = {
+              chainId: expectedChainIdHex,
+              chainName: fromChain.name ?? `Chain ${expectedChainId}`,
+              nativeCurrency: {
+                name: nativeCurrencyName,
+                symbol: nativeCurrencySymbol,
+                decimals: 18,
+              },
+              rpcUrls: [rpcUrl],
+              blockExplorerUrls: explorerUrl ? [explorerUrl] : undefined,
+            };
+
+            console.log('Attempting wallet_addEthereumChain', addPayload);
+            await provider.send('wallet_addEthereumChain', [addPayload]);
+          };
+
+          const attemptNetworkSwitch = async () => {
+            try {
+              await provider.send('wallet_switchEthereumChain', [{ chainId: expectedChainIdHex }]);
+            } catch (switchError) {
+              const switchErr = switchError as { code?: number | string } & Error;
+
+              if (switchErr?.code === 4902 || switchErr?.code === '4902') {
+                try {
+                  await attemptChainAddition();
+                  await provider.send('wallet_switchEthereumChain', [{ chainId: expectedChainIdHex }]);
+                } catch (addError) {
+                  const addErr = addError as Error & { code?: number };
+                  throw new Error(
+                    `Failed to add the ${fromChain.name} network to your wallet. ${
+                      addErr?.message ?? addErr
+                    }`
+                  );
+                }
+              } else {
+                const reason =
+                  switchErr?.message ??
+                  (typeof switchErr === 'object' ? JSON.stringify(switchErr) : String(switchErr));
+                throw new Error(
+                  `Automatic network switch rejected. Please switch to ${fromChain.name} (chainId ${expectedChainId} / ${expectedChainIdHex}) manually in your wallet. Reason: ${reason}`
+                );
+              }
+            }
+
+            const updatedNetwork = await provider.getNetwork();
+            if (updatedNetwork.chainId !== expectedChainId) {
+              throw new Error(
+                `Attempted to switch networks but wallet is still on chainId ${updatedNetwork.chainId}. Please switch to ${fromChain.name} (chainId ${expectedChainId} / ${expectedChainIdHex}) manually in your wallet.`
+              );
+            }
+          };
+
+          try {
+            await attemptNetworkSwitch();
+            console.log('Network switch successful.', {
+              newChainId: expectedChainId,
+              newChainIdHex: expectedChainIdHex,
+            });
+          } catch (switchError) {
+            console.error('Network switch failed:', switchError);
+            throw switchError instanceof Error
+              ? switchError
+              : new Error(String(switchError));
           }
+        } else {
           console.log('Network verification passed', {
             expectedChainId: expectedChainId.toString(),
-            expectedChainIdHex: '0x' + expectedChainId.toString(16),
+            expectedChainIdHex: ethers.utils.hexValue(expectedChainId),
           });
-        } catch (networkCheckError) {
-          throw networkCheckError instanceof Error
-            ? networkCheckError
-            : new Error(String(networkCheckError));
         }
       } else {
         console.warn('fromChain.chainId not provided; skipping strict network verification.');
@@ -1003,7 +1040,7 @@ export default function AvalinkMain() {
       // Convert amount to wei
       const decimals = await tokenContract.decimals();
       setTokenDecimals(Number(decimals));
-      const amount = ethers.parseUnits(fromAmount, decimals);
+      const amount = ethers.utils.parseUnits(fromAmount, decimals);
 
       // Check user balance
       const userAddress = await signer.getAddress();
@@ -1013,15 +1050,15 @@ export default function AvalinkMain() {
       console.log('Balance check:', {
         userAddress,
         balance: balance.toString(),
-        balanceFormatted: ethers.formatUnits(balance, decimals),
+        balanceFormatted: ethers.utils.formatUnits(balance, decimals),
         requestedAmount: amount.toString(),
         requestedAmountFormatted: fromAmount,
         tokenAddress: fromToken.address,
         decimals,
       });
       
-      if (balance < amount) {
-        throw new Error(`Insufficient balance. You have ${ethers.formatUnits(balance, decimals)} ${fromToken.symbol}, but trying to send ${fromAmount} ${fromToken.symbol}`);
+      if (balance.lt(amount)) {
+        throw new Error(`Insufficient balance. You have ${ethers.utils.formatUnits(balance, decimals)} ${fromToken.symbol}, but trying to send ${fromAmount} ${fromToken.symbol}`);
       }
 
       // Check and approve allowance - approve the bridge contract to spend tokens
@@ -1031,33 +1068,52 @@ export default function AvalinkMain() {
       
       console.log('Allowance check:', {
         currentAllowance: allowance.toString(),
-        currentAllowanceFormatted: ethers.formatUnits(allowance, decimals),
+        currentAllowanceFormatted: ethers.utils.formatUnits(allowance, decimals),
         requiredAmount: amount.toString(),
         requiredAmountFormatted: fromAmount,
         bridgeContractAddress,
-        needsApproval: allowance < amount,
+        needsApproval: allowance.lt(amount),
       });
+      setBridgeLoaderStep(1);
+      updateLoaderState(1, 'Checking token allowance...');
       
-      if (allowance < amount) {
-        setToastMessage('Approving token spending...');
+      if (allowance.lt(amount)) {
+        updateLoaderState(1, 'Requesting token approval...');
         try {
           console.log('Approving MaxUint256 to minimise repeated approvals.');
-          const approveTx = await tokenContract.approve(bridgeContractAddress, ethers.MaxUint256);
+          const approveTx = await tokenContract.approve(bridgeContractAddress, ethers.constants.MaxUint256);
           console.log('Approval transaction sent:', approveTx.hash);
           setLastApprovalTxId(approveTx.hash);
           await approveTx.wait();
-          setToastMessage('Approval confirmed. Sending tokens...');
           console.log('Approval confirmed');
           const updatedAllowance = await tokenContract.allowance(userAddress, bridgeContractAddress);
           setTokenAllowance(updatedAllowance);
           console.log('Updated allowance after approval:', {
             updatedAllowance: updatedAllowance.toString(),
-            updatedAllowanceFormatted: ethers.formatUnits(updatedAllowance, decimals),
+            updatedAllowanceFormatted: ethers.utils.formatUnits(updatedAllowance, decimals),
           });
           if (updatedAllowance < amount) {
             throw new Error('Allowance is still insufficient after approval. Please try again.');
           }
+          updateLoaderState(
+            1,
+            `Token allowance ready (approval tx ${shortenHash(approveTx.hash)})`
+          );
         } catch (approveError: unknown) {
+          if (isUserRejectedRequest(approveError)) {
+            console.warn('Token approval was rejected by the user.');
+            const rejectionError =
+              approveError instanceof Error
+                ? approveError
+                : new Error('Approval rejected by user');
+            bridgeError = rejectionError;
+            setCriticalError(null);
+            setLocalError('Approval rejected');
+            updateLoaderState(1, 'Approval rejected');
+            scheduleLoaderReset(2500);
+            return;
+          }
+
           console.error('Approval error:', approveError);
           const errorMessage = approveError instanceof Error 
             ? approveError.message 
@@ -1068,6 +1124,7 @@ export default function AvalinkMain() {
         }
       } else {
         console.log('Sufficient allowance already exists, skipping approval');
+        updateLoaderState(1, 'Token allowance already sufficient');
       }
 
       // Prepare bridge transaction
@@ -1083,14 +1140,14 @@ export default function AvalinkMain() {
           length: blockchainIdHex.length,
         });
 
-        const bytes = ethers.getBytes(blockchainIdHex);
+        const bytes = ethers.utils.arrayify(blockchainIdHex);
         if (bytes.length > 32) {
           throw new Error(`BlockchainId too long: ${bytes.length} bytes. Maximum is 32 bytes.`);
         }
 
         const paddedBytes = new Uint8Array(32);
         paddedBytes.set(bytes, 32 - bytes.length);
-        destinationBlockchainID = ethers.hexlify(paddedBytes);
+        destinationBlockchainID = ethers.utils.hexlify(paddedBytes);
 
         if (destinationBlockchainID.length !== 66) {
           throw new Error(
@@ -1110,7 +1167,7 @@ export default function AvalinkMain() {
 
       const destinationTokenTransferrerAddress = toChain.tokenRemoteAddress;
       const recipient = userAddress;
-      const primaryFeeTokenAddress = ethers.ZeroAddress; // Use native token for fees
+      const primaryFeeTokenAddress = ethers.constants.AddressZero; // Use native token for fees
       const primaryFee = BigInt(0); // No fee for now
       const secondaryFee = BigInt(0);
       // CRITICAL: Use 250,000 (250k) not 250 million! This is a common mistake
@@ -1121,7 +1178,7 @@ export default function AvalinkMain() {
       } catch (gasError) {
         throw new Error(`Invalid required gas limit: ${gasLimitSource}`);
       }
-      const multiHopFallback = ethers.ZeroAddress;
+      const multiHopFallback = ethers.constants.AddressZero;
 
       const sendInput = {
         destinationBlockchainID,
@@ -1135,41 +1192,18 @@ export default function AvalinkMain() {
       };
 
       // Validate addresses
-      if (!ethers.isAddress(destinationTokenTransferrerAddress)) {
+      if (!ethers.utils.isAddress(destinationTokenTransferrerAddress)) {
         throw new Error(`Invalid destination token address: ${destinationTokenTransferrerAddress}`);
       }
-      if (!ethers.isAddress(recipient)) {
+      if (!ethers.utils.isAddress(recipient)) {
         throw new Error(`Invalid recipient address: ${recipient}`);
       }
-
-      console.log('=== BRIDGE TRANSACTION PARAMETERS ===');
-      console.log('Bridge Contract:', fromToken.bridgeContractAddress);
-      console.log('Amount:', {
-        raw: amount.toString(),
-        formatted: fromAmount,
-        decimals,
-      });
-      console.log('SendInput struct:', {
-        destinationBlockchainID,
-        destinationBlockchainIDLength: destinationBlockchainID.length,
-        destinationTokenTransferrerAddress,
-        recipient,
-        primaryFeeTokenAddress,
-        primaryFee: primaryFee.toString(),
-        secondaryFee: secondaryFee.toString(),
-        requiredGasLimit: parsedRequiredGasLimit.toString(),
-        multiHopFallback,
-      });
-      console.log('Function call will be: bridgeContract.send(sendInput, amount)');
 
       // Send bridge transaction - use the bridge contract address
       // First, encode the transaction to see what we're actually sending
       try {
         const encodedData = bridgeContract.interface.encodeFunctionData('send', [sendInput, amount]);
-        console.log('=== ENCODED TRANSACTION DATA ===');
         console.log('Full encoded data:', encodedData);
-        console.log('Function selector (first 10 chars):', encodedData.substring(0, 10));
-        console.log('Expected selector for send(SendTokensInput,uint256):', '0x5d16225d');
       } catch (encodeError) {
         console.error('Failed to encode transaction:', encodeError);
         throw encodeError;
@@ -1178,7 +1212,7 @@ export default function AvalinkMain() {
       // Build the transaction to verify all parameters
       try {
         console.log('=== BUILDING TRANSACTION ===');
-        const populatedTx = await bridgeContract.send.populateTransaction(sendInput, amount);
+        const populatedTx = await bridgeContract.populateTransaction.send(sendInput, amount);
         console.log('Populated transaction:', {
           to: populatedTx.to,
           from: populatedTx.from,
@@ -1192,9 +1226,9 @@ export default function AvalinkMain() {
       // Try to estimate gas to get better error messages
       try {
         console.log('=== ATTEMPTING GAS ESTIMATION ===');
-        console.log('Calling: bridgeContract.send.estimateGas(sendInput, amount)');
+        console.log('Calling: bridgeContract.estimateGas.send(sendInput, amount)');
         console.log('With account:', userAddress);
-        const gasEstimate = await bridgeContract.send.estimateGas(sendInput, amount);
+        const gasEstimate = await bridgeContract.estimateGas.send(sendInput, amount);
         console.log('✅ Gas estimate successful:', gasEstimate.toString());
       } catch (estimateError: unknown) {
         console.error('❌ Gas estimation failed:', estimateError);
@@ -1248,28 +1282,36 @@ export default function AvalinkMain() {
         throw new Error(`${errorMessage}${errorDetails}${commonIssues}`);
       }
 
-      setToastMessage('Sending bridge transaction...');
+      setBridgeLoaderStep(2);
+      updateLoaderState(2, 'Submitting bridge transaction...');
       const tx = await bridgeContract.send(sendInput, amount);
       setLastSendTxId(tx.hash);
-      setToastMessage(`Transaction submitted: ${tx.hash}`);
+      updateLoaderState(
+        2,
+        `Transaction submitted: ${shortenHash(tx.hash)} (awaiting confirmation)`
+      );
       
       // Wait for transaction
-      const receipt: ethers.TransactionReceipt = await tx.wait();
+      const receipt: ethers.providers.TransactionReceipt = await tx.wait();
       setLastSendTxDetails((prev) => ({
         ...prev,
         source: { ...prev?.source, confirmedAt: Date.now() },
       }));
 
-      if (receipt?.hash) {
-        setToastMessage(`Bridge successful! Transaction: ${receipt.hash}`);
+      setBridgeLoaderStep(3);
+      if (receipt?.transactionHash) {
+        updateLoaderState(
+          3,
+          `Bridge confirmed: ${shortenHash(receipt.transactionHash)}`
+        );
       } else {
-        setToastMessage('Bridge transaction confirmed.');
+        updateLoaderState(3, 'Bridge transaction confirmed');
       }
 
       const teleporterMessengerAddress = activeIcttSetup?.tokenHomeChain.teleporterAddress;
       if (teleporterMessengerAddress && receipt?.logs?.length) {
         try {
-          const teleporterInterface = new ethers.Interface(TeleporterMessengerABI.abi);
+          const teleporterInterface = new ethers.utils.Interface(TeleporterMessengerABI.abi);
           const messengerLog = receipt.logs.find(
             (log) =>
               log.address &&
@@ -1286,6 +1328,18 @@ export default function AvalinkMain() {
             if (typeof potentialMessageId === 'string') {
               setMessageID(potentialMessageId);
               setTryCount(0);
+              const shortMessageId =
+                potentialMessageId.length > 20
+                  ? `${potentialMessageId.slice(0, 10)}...${potentialMessageId.slice(-6)}`
+                  : potentialMessageId;
+              const confirmationPrefix =
+                receipt?.transactionHash !== undefined
+                  ? `Bridge confirmed: ${shortenHash(receipt.transactionHash)}`
+                  : 'Bridge transaction confirmed';
+              updateLoaderState(
+                3,
+                `${confirmationPrefix} (Teleporter message ${shortMessageId})`
+              );
             }
           }
         } catch (logError) {
@@ -1296,21 +1350,40 @@ export default function AvalinkMain() {
       }
 
       await loadTokenInfo();
+      bridgeCompleted = true;
+      scheduleLoaderReset(3500);
       
       // Reset form
       setFromAmount('');
       setToAmount('');
       
     } catch (error: unknown) {
-      console.error('Bridge error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Bridge transaction failed. Please try again.';
+      // console.error('Bridge error:', error);
+      const normalizedError = error instanceof Error ? error : new Error(String(error));
+      if (isUserRejectedRequest(error) || isUserRejectedRequest(normalizedError) || (bridgeError && isUserRejectedRequest(bridgeError))) {
+        const rejectionMessage = 'Approval rejected';
+        setCriticalError(null);
+        setLocalError(rejectionMessage);
+        updateLoaderState(bridgeLoaderStepRef.current, rejectionMessage);
+        scheduleLoaderReset(2500);
+        return;
+      }
+      const errorMessage =
+        normalizedError?.message || 'Bridge transaction failed. Please try again.';
+      bridgeError = normalizedError;
+      setCriticalError(normalizedError);
       setLocalError(errorMessage);
-      setCriticalError(error instanceof Error ? error : new Error(String(error)));
-      setToastMessage(errorMessage);
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 5000);
+      const erroredStep = Math.min(
+        bridgeLoaderStepRef.current,
+        DEFAULT_BRIDGE_LOADING_STATES.length - 1
+      );
+      updateLoaderState(erroredStep, `Error: ${errorMessage}`);
+      scheduleLoaderReset(5000);
     } finally {
       setIsProcessingSend(false);
+      if (!bridgeCompleted && !bridgeError) {
+        resetBridgeLoader();
+      }
     }
   };
 
@@ -1511,27 +1584,7 @@ export default function AvalinkMain() {
 
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-gray-950' : 'bg-white'} relative overflow-hidden transition-colors duration-300`}>
-      {/* Floating Background Icons */}
 
-      <FloatingIcon symbol="BEAM" delay="2s" x="85%" y="20%" color="from-red-400 to-red-600" size={184} textSize={46} />
-      <FloatingIcon symbol="DFK" delay="0s" x="5%" y="15%" color="from-red-500 to-red-700" size={120} textSize={30} />
-      <FloatingIcon symbol="DOS" delay="4s" x="10%" y="70%" color="from-red-400 to-red-600" size={98} textSize={24} />
-      <FloatingIcon symbol="DEX" delay="6s" x="90%" y="60%" color="from-red-500 to-red-700" size={64} textSize={16} />
-      <FloatingIcon symbol="LOCO" delay="8s" x="50%" y="10%" color="from-red-400 to-red-600" size={87} textSize={22} />
-      <FloatingIcon symbol="SHRAP" delay="10s" x="75%" y="80%" color="from-red-500 to-red-700" size={66} textSize={16} />
-      <FloatingIcon symbol="MELD" delay="12s" x="20%" y="40%" color="from-red-400 to-red-600" size={98} textSize={24} />
-
-{/* 
-      <FloatingIcon symbol="BEAM" delay="2s" x="85%" y="20%" color="from-purple-400 to-purple-600" size={184} textSize={46} />
-      <FloatingIcon symbol="DFK" delay="0s" x="5%" y="15%" color="from-blue-400 to-blue-600" size={120} textSize={30} />
-      <FloatingIcon symbol="DOS" delay="4s" x="10%" y="70%" color="from-green-400 to-green-600" size={98} textSize={24} />
-      <FloatingIcon symbol="DEX" delay="6s" x="90%" y="60%" color="from-orange-400 to-orange-600" size={64} textSize={16} />
-      <FloatingIcon symbol="LOCO" delay="8s" x="50%" y="10%" color="from-blue-300 to-blue-500" size={87} textSize={22} />
-      <FloatingIcon symbol="SHRAP" delay="10s" x="75%" y="80%" color="from-purple-500 to-blue-600" size={66} textSize={16} />
-      <FloatingIcon symbol="MELD" delay="12s" x="20%" y="40%" color="from-gray-600 to-gray-800" size={98} textSize={24} /> */}
-
-      {/* Header is rendered from layout via provider */}
-      
       {/* Main Content */}
       <main className={`relative z-10 flex flex-col items-center justify-center px-4 py-16 transition-colors duration-300`}>
         <div className="text-center mb-12">
@@ -1699,11 +1752,23 @@ export default function AvalinkMain() {
                 {localError}
               </p>
             ) : null}
-          </div>
+            <div className="w-full flex justify-center">
+              <Loader
+                loadingStates={bridgeLoaderStates}
+                loading={bridgeLoaderOpen}
+                manualStepIndex={bridgeLoaderStep}
+                loop={false}
+                onClose={isProcessingSend ? undefined : resetBridgeLoader}
+                variant="inline"
+                themeMode={darkMode ? 'dark' : 'light'}
+                className="max-w-md"
+              />
+            </div>
 
-          <p className={`text-center ${darkMode ? 'text-gray-400' : 'text-gray-500'} text-sm mt-6 transition-colors duration-300`}>
-            Transfer assets between all avalanche subnets.
-          </p>
+            <p className={`text-center ${darkMode ? 'text-gray-400' : 'text-gray-500'} text-sm mt-6 transition-colors duration-300`}>
+              Transfer assets between all avalanche subnets.
+            </p>
+          </div>
         </div>
       </main>
 
@@ -1731,39 +1796,6 @@ export default function AvalinkMain() {
         onSelect={(token) => selectToken(token)}
         tokens={availableTokens}
       />
-      
-      <WalletModal
-        isOpen={showWalletModal}
-        onClose={() => setShowWalletModal(false)}
-        onConnect={connectWallet}
-      />
-
-      {/* Toast Notification */}
-      <Toast 
-        message={toastMessage} 
-        isVisible={showToast} 
-        onClose={() => setShowToast(false)} 
-      />
-
-      <style jsx>{`
-        @keyframes float {
-          0%, 100% {
-            transform: translateY(0px) translateX(0px) rotate(0deg);
-          }
-          25% {
-            transform: translateY(-30px) translateX(20px) rotate(5deg);
-          }
-          50% {
-            transform: translateY(-15px) translateX(-20px) rotate(-5deg);
-          }
-          75% {
-            transform: translateY(-25px) translateX(15px) rotate(3deg);
-          }
-        }
-        .animate-float {
-          animation: float 20s ease-in-out infinite;
-        }
-      `}</style>
     </div>
   );
 }

@@ -19,7 +19,9 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
         connectedWallet={!!connectedWallet}
         walletAddress={walletAddress}
         disconnectWallet={disconnect}
-        setShowWalletModal={() => connect().catch(() => {})}
+        onConnect={() => {
+          connect().catch(() => {});
+        }}
       />
       {children}
     </>

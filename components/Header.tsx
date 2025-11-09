@@ -3,13 +3,11 @@
 import { Sun, Moon, Plus, Home } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
-
-
-export default function Header({ darkMode, toggleDarkMode, connectedWallet, walletAddress, disconnectWallet, setShowWalletModal }: { darkMode: boolean, toggleDarkMode: () => void, connectedWallet: boolean, walletAddress: string, disconnectWallet: () => void, setShowWalletModal: (show: boolean) => void }) {
+export default function Header({ darkMode, toggleDarkMode, connectedWallet, walletAddress, disconnectWallet, onConnect }: { darkMode: boolean, toggleDarkMode: () => void, connectedWallet: boolean, walletAddress: string, disconnectWallet: () => Promise<void>, onConnect: () => void }) {
   const router = useRouter();
 
   const handleAddChain = () => {
-    router.push('/newchainregister');
+    router.push('/addchain');
   };
 
   const handleHome = () => {
@@ -72,7 +70,9 @@ export default function Header({ darkMode, toggleDarkMode, connectedWallet, wall
                 {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
               </div>
               <button 
-                onClick={disconnectWallet}
+                onClick={() => {
+                  disconnectWallet().catch(() => {});
+                }}
                 className="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl text-sm font-medium transition-all"
               >
                 Disconnect
@@ -80,7 +80,7 @@ export default function Header({ darkMode, toggleDarkMode, connectedWallet, wall
             </div>
           ) : (
             <button 
-              onClick={() => setShowWalletModal(true)}
+              onClick={onConnect}
               className={`px-5 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl font-medium transition-all`}
             >
               Connect

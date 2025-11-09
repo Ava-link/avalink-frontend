@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { ArrowLeft, X, Info } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useWallet } from '../providers/WalletProvider';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
 
 interface HomeChainFormData {
   rpcUrl: string;
@@ -31,7 +33,7 @@ interface RemoteChainFormData {
 
 const TELEPORTER_MESSENGER_ADDRESS = '0x253b2784c75e510dD0fF1da844684a1aC0aa5fcf';
 
-export default function NewChainRegisterPage() {
+export default function AddChainPage() {
   const router = useRouter();
   const { darkMode } = useWallet();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -39,6 +41,7 @@ export default function NewChainRegisterPage() {
   const [toastMessage, setToastMessage] = useState('');
   const [homeChainHasICMSetup, setHomeChainHasICMSetup] = useState<boolean>(false);
   const [remoteChainHasICMSetup, setRemoteChainHasICMSetup] = useState<boolean>(false);
+  const [bridgeType, setBridgeType] = useState<'erc20-erc20' | 'erc20-native' | 'native-erc20' | 'native-native'>('erc20-erc20');
   const [homeChain, setHomeChain] = useState<HomeChainFormData>({
     rpcUrl: '',
     blockchainId: '',
@@ -236,14 +239,43 @@ export default function NewChainRegisterPage() {
 
         {/* Page Title */}
         <div className="mb-8">
-          <h1 className={`text-4xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'} mb-2`}>
-            Deploy Bridge
-          </h1>
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <h1 className={`text-4xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              Deploy Bridge
+            </h1>
+          </div>
           <p className={`text-lg ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
             Configure and deploy a bridge between home and remote chains
           </p>
         </div>
 
+        <div className='mb-4'>
+          <Tabs
+            value={bridgeType}
+            onValueChange={(value) => setBridgeType(value as typeof bridgeType)}
+            className="w-full md:w-auto"
+            darkMode={darkMode}
+          >
+            <TabsList
+              className="grid w-full grid-cols-2 gap-2 md:flex md:w-auto md:items-center md:justify-center md:space-x-2 md:gap-0"
+            >
+              <TabsTrigger value="erc20-erc20">
+                ERC-20 to ERC-20
+              </TabsTrigger>
+              <TabsTrigger value="erc20-native">
+                ERC-20 to Native
+              </TabsTrigger>
+              <TabsTrigger value="native-erc20">
+                Native to ERC-20
+              </TabsTrigger>
+              <TabsTrigger value="native-native">
+                Native to Native
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+
+        {bridgeType === 'erc20-erc20' ? (
         <form onSubmit={handleSubmit} className="space-y-8">
           {/* Home Chain Configuration Card */}
           <div className={`${darkMode ? 'bg-gray-900/50 border-gray-800/50' : 'bg-white/50 border-gray-200'} backdrop-blur-xl rounded-3xl border p-6 shadow-2xl`}>
@@ -251,18 +283,6 @@ export default function NewChainRegisterPage() {
               <h2 className={`text-2xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                 Home Chain Configuration
               </h2>
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  id="home_icm_setup"
-                  checked={homeChainHasICMSetup}
-                  onChange={(e) => handleHomeChainICMSetupChange(e.target.checked)}
-                  className="w-5 h-5 text-red-500 bg-gray-800 border-gray-600 rounded focus:ring-red-500"
-                />
-                <label htmlFor="home_icm_setup" className={`text-sm font-medium cursor-pointer ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Does your chain have a ICM setup?
-                </label>
-              </div>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -364,18 +384,28 @@ export default function NewChainRegisterPage() {
 
             {/* Teleporter Registry Configuration */}
             <div className={`mt-6 pt-6 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+              <div className="flex items-center gap-3 mb-4">
+                <Switch
+                  id="home_icm_setup"
+                  checked={homeChainHasICMSetup}
+                  onCheckedChange={handleHomeChainICMSetupChange}
+                  className="data-[state=checked]:bg-red-500 data-[state=unchecked]:bg-gray-700/80"
+                />
+                <label htmlFor="home_icm_setup" className={`text-sm font-medium cursor-pointer ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Does your chain have a ICM setup?
+                </label>
+              </div>
               <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'} mb-4`}>
                 Teleporter Registry
               </h3>
               {!homeChainHasICMSetup && (
                 <div className="flex items-center gap-3 mb-4">
-                  <input
-                    type="checkbox"
+                  <Switch
                     id="home_teleporter_registry_deploy"
                     checked={homeChain.teleporterRegistryDeploy}
-                    onChange={(e) => handleHomeChainInputChange('teleporterRegistryDeploy', e.target.checked)}
+                    onCheckedChange={(checked) => handleHomeChainInputChange('teleporterRegistryDeploy', checked)}
                     disabled
-                    className="w-5 h-5 text-red-500 bg-gray-800 border-gray-600 rounded focus:ring-red-500 cursor-not-allowed"
+                    className="data-[state=checked]:bg-red-500 data-[state=unchecked]:bg-gray-700/60 disabled:opacity-60"
                   />
                   <label htmlFor="home_teleporter_registry_deploy" className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                     Deploy Teleporter Registry
@@ -406,18 +436,6 @@ export default function NewChainRegisterPage() {
               <h2 className={`text-2xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                 Remote Chain Configuration
               </h2>
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  id="remote_icm_setup"
-                  checked={remoteChainHasICMSetup}
-                  onChange={(e) => handleRemoteChainICMSetupChange(e.target.checked)}
-                  className="w-5 h-5 text-red-500 bg-gray-800 border-gray-600 rounded focus:ring-red-500"
-                />
-                <label htmlFor="remote_icm_setup" className={`text-sm font-medium cursor-pointer ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Does your chain have a ICM setup?
-                </label>
-              </div>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -565,18 +583,28 @@ export default function NewChainRegisterPage() {
 
             {/* Teleporter Registry Configuration */}
             <div className={`mt-6 pt-6 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+              <div className="flex items-center gap-3 mb-4">
+                <Switch
+                  id="remote_icm_setup"
+                  checked={remoteChainHasICMSetup}
+                  onCheckedChange={handleRemoteChainICMSetupChange}
+                  className="data-[state=checked]:bg-red-500 data-[state=unchecked]:bg-gray-700/80"
+                />
+                <label htmlFor="remote_icm_setup" className={`text-sm font-medium cursor-pointer ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Does your chain have a ICM setup?
+                </label>
+              </div>
               <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'} mb-4`}>
                 Teleporter Registry
               </h3>
               {!remoteChainHasICMSetup && (
                 <div className="flex items-center gap-3 mb-4">
-                  <input
-                    type="checkbox"
+                  <Switch
                     id="remote_teleporter_registry_deploy"
                     checked={remoteChain.teleporterRegistryDeploy}
-                    onChange={(e) => handleRemoteChainInputChange('teleporterRegistryDeploy', e.target.checked)}
+                    onCheckedChange={(checked) => handleRemoteChainInputChange('teleporterRegistryDeploy', checked)}
                     disabled
-                    className="w-5 h-5 text-red-500 bg-gray-800 border-gray-600 rounded focus:ring-red-500 cursor-not-allowed"
+                    className="data-[state=checked]:bg-red-500 data-[state=unchecked]:bg-gray-700/60 disabled:opacity-60"
                   />
                   <label htmlFor="remote_teleporter_registry_deploy" className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                     Deploy Teleporter Registry
@@ -624,6 +652,15 @@ export default function NewChainRegisterPage() {
             </button>
           </div>
         </form>
+        ) : (
+          <div className={`flex flex-col items-center justify-center gap-2 py-24 rounded-3xl border ${darkMode ? 'border-gray-800/50 bg-gray-900/30 text-gray-400' : 'border-gray-200 bg-gray-50 text-gray-600'} transition-colors`}>
+            <div id="computer" className="w-1/2 h-1/2">
+              <span className="computer-graphic" />
+            </div>
+            <p className="text-4xl font-semibold">Coming soon...</p>
+            <p className="text-sm">This bridge configuration is under development.</p>
+          </div>
+        )}
       </main>
 
       {/* Toast Notification */}

@@ -1,97 +1,94 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+import { AppKitProvider, useAppKit, useAppKitAccount, useAppKitProvider, useDisconnect } from '@reown/appkit/react';
+import { Ethers5Adapter } from '@reown/appkit-adapter-ethers5';
+import { avalanche, avalancheFuji } from '@reown/appkit/networks';
 import { ethers } from 'ethers';
 
-type WalletType = 'metamask' | 'core';
+type WalletType = 'EXTERNAL' | 'WALLET_CONNECT' | 'INJECTED' | 'ANNOUNCED' | 'AUTH' | 'MULTI_CHAIN';
 
 interface WalletContextValue {
   darkMode: boolean;
   toggleDarkMode: () => void;
   connectedWallet: WalletType | null;
   walletAddress: string;
-  provider: ethers.BrowserProvider | null;
-  signer: ethers.JsonRpcSigner | null;
-  connect: (walletType?: WalletType) => Promise<void>;
-  disconnect: () => void;
+  provider: ethers.providers.Web3Provider | null;
+  signer: ethers.providers.JsonRpcSigner | null;
+  connect: () => Promise<void>;
+  disconnect: () => Promise<void>;
 }
 
 const WalletContext = createContext<WalletContextValue | undefined>(undefined);
 
-export function useWallet() {
-  const ctx = useContext(WalletContext);
-  if (!ctx) throw new Error('useWallet must be used within WalletProvider');
-  return ctx;
-}
+const projectId = process.env.NEXT_PUBLIC_PROJECT_ID;
 
-export default function WalletProvider({ children }: { children: React.ReactNode }) {
+const metadata = {
+  name: 'Avalink',
+  description: 'Avalanche subnet bridge portal',
+  url: process.env.NEXT_PUBLIC_APP_URL ?? 'https://avalink.app',
+  icons: ['https://avatars.githubusercontent.com/u/37784886?s=200&v=4'],
+};
+
+const adapters = [new Ethers5Adapter()];
+const networks = [avalancheFuji, avalanche] as [typeof avalancheFuji, typeof avalanche];
+
+function WalletProviderInner({ children }: { children: React.ReactNode }) {
   const [darkMode, setDarkMode] = useState(true);
   const [connectedWallet, setConnectedWallet] = useState<WalletType | null>(null);
   const [walletAddress, setWalletAddress] = useState('');
-  const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
-  const [signer, setSigner] = useState<ethers.JsonRpcSigner | null>(null);
+  const [provider, setProvider] = useState<ethers.providers.Web3Provider | null>(null);
+  const [signer, setSigner] = useState<ethers.providers.JsonRpcSigner | null>(null);
+
+  const { open } = useAppKit();
+  const { disconnect: disconnectAppKit } = useDisconnect();
+  const { address, isConnected } = useAppKitAccount({ namespace: 'eip155' });
+  const { walletProvider, walletProviderType } = useAppKitProvider<ethers.providers.ExternalProvider>('eip155');
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode);
   }, [darkMode]);
 
-  // Auto-reconnect on load
   useEffect(() => {
-    const initialize = async () => {
-      const anyWindow = window as unknown as {
-        ethereum?: unknown;
-        core?: unknown;
-      };
-      if (!anyWindow.ethereum && !anyWindow.core) return;
-      try {
-        const web3Provider = new ethers.BrowserProvider((anyWindow.core as ethers.Eip1193Provider) || (anyWindow.ethereum as ethers.Eip1193Provider));
-        const accounts = await web3Provider.listAccounts();
-        if (accounts.length > 0) {
-          const resolvedSigner = await web3Provider.getSigner();
-          const address = await resolvedSigner.getAddress();
-          setProvider(web3Provider);
-          setSigner(resolvedSigner);
-          setWalletAddress(address);
-          setConnectedWallet((anyWindow.core ? 'core' : 'metamask'));
-        }
-      } catch {
-        // ignore
-      }
-    };
-    initialize();
-  }, []);
+    if (isConnected && walletProvider && address) {
+      const web3Provider = new ethers.providers.Web3Provider(walletProvider, 'any');
+      const signerInstance = web3Provider.getSigner();
 
-  const toggleDarkMode = () => setDarkMode((d) => !d);
-
-  const connect = async (walletType: WalletType = 'metamask') => {
-    const anyWindow = window as unknown as {
-      ethereum?: ethers.Eip1193Provider;
-      core?: ethers.Eip1193Provider;
-    };
-    let targetProvider: ethers.Eip1193Provider | undefined = undefined;
-    if (walletType === 'core' && anyWindow.core) {
-      targetProvider = anyWindow.core;
-    } else if (anyWindow.ethereum) {
-      targetProvider = anyWindow.ethereum;
-    } else {
-      throw new Error('No wallet found');
+      setProvider(web3Provider);
+      setSigner(signerInstance);
+      setWalletAddress(address);
+      setConnectedWallet(walletProviderType ?? null);
+      return;
     }
-    const web3Provider = new ethers.BrowserProvider(targetProvider);
-    await web3Provider.send('eth_requestAccounts', []);
-    const resolvedSigner = await web3Provider.getSigner();
-    const address = await resolvedSigner.getAddress();
-    setProvider(web3Provider);
-    setSigner(resolvedSigner);
-    setWalletAddress(address);
-    setConnectedWallet(walletType === 'core' ? 'core' : 'metamask');
-  };
 
-  const disconnect = () => {
-    setConnectedWallet(null);
-    setWalletAddress('');
     setProvider(null);
     setSigner(null);
-  };
+    setWalletAddress('');
+    setConnectedWallet(null);
+  }, [isConnected, walletProvider, address, walletProviderType]);
+
+  const toggleDarkMode = useCallback(() => {
+    setDarkMode((d) => !d);
+  }, []);
+
+  const connect = useCallback(async () => {
+    await open({ view: 'Connect', namespace: 'eip155' });
+  }, [open]);
+
+  const disconnect = useCallback(async () => {
+    await disconnectAppKit();
+    setProvider(null);
+    setSigner(null);
+    setWalletAddress('');
+    setConnectedWallet(null);
+  }, [disconnectAppKit]);
 
   const value = useMemo<WalletContextValue>(() => ({
     darkMode,
@@ -102,7 +99,7 @@ export default function WalletProvider({ children }: { children: React.ReactNode
     signer,
     connect,
     disconnect,
-  }), [darkMode, connectedWallet, walletAddress, provider, signer]);
+  }), [darkMode, toggleDarkMode, connectedWallet, walletAddress, provider, signer, connect, disconnect]);
 
   return (
     <WalletContext.Provider value={value}>
@@ -111,4 +108,29 @@ export default function WalletProvider({ children }: { children: React.ReactNode
   );
 }
 
+export function useWallet() {
+  const ctx = useContext(WalletContext);
+  if (!ctx) throw new Error('useWallet must be used within WalletProvider');
+  return ctx;
+}
 
+export default function WalletProvider({ children }: { children: React.ReactNode }) {
+  if (!projectId) {
+    throw new Error('NEXT_PUBLIC_PROJECT_ID is required to initialize WalletConnect');
+  }
+
+  return (
+    <AppKitProvider
+      projectId={projectId}
+      adapters={adapters}
+      networks={networks}
+      defaultNetwork={avalancheFuji}
+      metadata={metadata}
+      themeMode="dark"
+    >
+      <WalletProviderInner>
+        {children}
+      </WalletProviderInner>
+    </AppKitProvider>
+  );
+}
