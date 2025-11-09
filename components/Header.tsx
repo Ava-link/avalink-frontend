@@ -7,7 +7,7 @@ export default function Header({ darkMode, toggleDarkMode, connectedWallet, wall
   const router = useRouter();
 
   const handleAddChain = () => {
-    router.push('/newchainregister');
+    router.push('/addchain');
   };
 
   const handleHome = () => {

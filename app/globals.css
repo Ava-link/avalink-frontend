@@ -3,6 +3,11 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --gray: #6b7280;
+  --light-gray: #d1d5db;
+  --dark-gray: #374151;
+  --dark-blue: #1f2937;
+  --light-blue: #60a5fa;
 }
 
 @theme inline {
@@ -35,4 +40,23 @@ body {
   input[type="number"] {
     -moz-appearance: textfield;
   }
+}
+
+  /* For WebKit browsers (Chrome, Edge, Safari) */
+::-webkit-scrollbar {
+  width: 1px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #ef4444; /* Tailwind red-500 */
+  border-radius: 10px;
+}
+
+/* Optional: make scrollbar visible when hovering */
+:hover::-webkit-scrollbar-thumb {
+  background-color: #dc2626; /* Tailwind red-600 */
 }
