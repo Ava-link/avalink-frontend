@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ChevronDown, X, Search } from 'lucide-react';
 import { useWallet } from './providers/WalletProvider';
 import { ethers } from 'ethers';
 import ERC20TokenHomeABI from '../abi/ERC20TokenHome.json';
+import TeleporterMessengerABI from '../abi/TeleporterMessenger.json';
 import Image from 'next/image';
 // API Types
 interface Chain {
@@ -48,10 +49,12 @@ interface ICTTSetup {
   setupName: string;
   tokenHomeAddress: string;
   tokenRemoteAddress: string;
+  tokenHomeChainId: string;
+  tokenRemoteChainId: string;
   tokenHomeChain: ICTTChain;
   tokenRemoteChain: ICTTChain;
-  tokenHomeToken: TokenInfo;
-  tokenRemoteToken: TokenInfo;
+  sendToken: TokenInfo;
+  receiveToken: TokenInfo;
 }
 
 interface ChainOption {
@@ -60,6 +63,7 @@ interface ChainOption {
   symbol: string;
   logoUrl: string;
   color: string;
+  chainId?: string;
   blockchainId?: string;
   tokenAddress?: string;
   tokenRemoteAddress?: string;
@@ -73,9 +77,11 @@ interface TokenOption {
   name: string;
   address: string;
   color: string;
+  decimals?: number;
   remoteAddress?: string;
   bridgeContractAddress?: string;
   icttSetupId?: string;
+  isHomeChainToken?: boolean;
 }
 const FloatingIcon = ({
   symbol,
@@ -184,8 +190,10 @@ const WalletModal = ({ isOpen, onClose, onConnect }: { isOpen: boolean, onClose:
   );
 };
 
+const MAX_TRANSFER_AMOUNT = 1_000_000;
+
 export default function AvalinkMain() {
-  const { darkMode, connectedWallet, connect, provider, signer } = useWallet();
+  const { darkMode, connectedWallet, connect, provider, signer, walletAddress } = useWallet();
   const [fromAmount, setFromAmount] = useState('');
   const [toAmount, setToAmount] = useState('');
   const [fromToken, setFromToken] = useState<TokenOption | null>(null);
@@ -206,6 +214,20 @@ export default function AvalinkMain() {
   const [loadingToChains, setLoadingToChains] = useState(false);
   const [loadingTokens, setLoadingTokens] = useState(false);
   const [icttSetups, setIcttSetups] = useState<ICTTSetup[]>([]);
+  const [activeIcttSetup, setActiveIcttSetup] = useState<ICTTSetup | null>(null);
+
+  const [localError, setLocalError] = useState('');
+  const [criticalError, setCriticalError] = useState<Error | null>(null);
+  const [isProcessingSend, setIsProcessingSend] = useState(false);
+  const [lastApprovalTxId, setLastApprovalTxId] = useState<string | undefined>(undefined);
+  const [lastSendTxId, setLastSendTxId] = useState<string | undefined>(undefined);
+  const [lastSendTxDetails, setLastSendTxDetails] = useState<{ source?: { initiatedAt?: number; confirmedAt?: number } } | null>(null);
+  const [messageID, setMessageID] = useState<string | null>(null);
+  const [tryCount, setTryCount] = useState(0);
+  const [tokenAllowance, setTokenAllowance] = useState<bigint | null>(null);
+  const [tokenBalance, setTokenBalance] = useState<bigint | null>(null);
+  const [tokenDecimals, setTokenDecimals] = useState<number | null>(null);
+  const [requiredGasLimit, setRequiredGasLimit] = useState<string>('250000');
   
   // Refs to track previous values and prevent infinite loops
   const prevTokenAddressRef = useRef<string | null>(null);
@@ -215,6 +237,60 @@ export default function AvalinkMain() {
   const isUpdatingFromChainRef = useRef(false);
 
   const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002';
+
+  const loadTokenInfo = useCallback(async () => {
+    if (!fromToken || !fromToken.bridgeContractAddress || !signer || !walletAddress) {
+      setTokenAllowance(null);
+      setTokenBalance(null);
+      return null;
+    }
+
+    try {
+      const tokenContract = new ethers.Contract(
+        fromToken.address,
+        [
+          'function allowance(address owner, address spender) external view returns (uint256)',
+          'function balanceOf(address account) external view returns (uint256)',
+          'function decimals() external view returns (uint8)',
+        ],
+        signer
+      );
+
+      const [decimalsRaw, allowanceRaw, balanceRaw] = await Promise.all([
+        fromToken.decimals !== undefined ? Promise.resolve(fromToken.decimals) : tokenContract.decimals(),
+        tokenContract.allowance(walletAddress, fromToken.bridgeContractAddress),
+        tokenContract.balanceOf(walletAddress),
+      ]);
+
+      const decimalsValue = Number(decimalsRaw);
+      setTokenDecimals(decimalsValue);
+      setTokenAllowance(allowanceRaw);
+      setTokenBalance(balanceRaw);
+
+      return {
+        decimals: decimalsValue,
+        allowance: allowanceRaw,
+        balance: balanceRaw,
+      };
+    } catch (error) {
+      console.error('Error loading token info:', error);
+      setTokenAllowance(null);
+      setTokenBalance(null);
+      setTokenDecimals(null);
+      return null;
+    }
+  }, [fromToken, signer, walletAddress]);
+
+  useEffect(() => {
+    if (!connectedWallet) {
+      setTokenAllowance(null);
+      setTokenBalance(null);
+      setTokenDecimals(null);
+      return;
+    }
+
+    loadTokenInfo();
+  }, [connectedWallet, loadTokenInfo]);
 
   // Helper function to generate color gradient from chain name
   const getColorFromName = (name: string): string => {
@@ -248,6 +324,7 @@ export default function AvalinkMain() {
             symbol: chain.nativeTokenSymbol,
             logoUrl: chain.logoUrl,
             color: getColorFromName(chain.name),
+            chainId: chain.chainId,
             rpcUrl: chain.explorerUrl,
           }));
           
@@ -295,79 +372,105 @@ export default function AvalinkMain() {
         return;
       }
 
+      const sourceChainId = fromChain.id;
+
       try {
         setLoadingTokens(true);
         const response = await fetch(`${backendUrl}/available/ictt/${fromChain.id}`);
         const data = await response.json();
-        
+        console.log('Data fetched from /available/ictt/:id:', data);
         if (data.success && data.icttSetup) {
           // Store all ICTT setups for later filtering
           setIcttSetups(data.icttSetup);
           
-          // Always update fromChain with complete information from tokenHomeChain in API response
+          // Sync latest metadata for the currently selected source chain
           if (fromChain && data.icttSetup.length > 0) {
-            const firstSetup = data.icttSetup[0];
-            const tokenHomeChain = firstSetup.tokenHomeChain;
-            
-            // Always update fromChain with tokenHomeChain data, but only if rpcUrl actually changed to prevent loops
-            const needsUpdate = !fromChain.rpcUrl || 
-                               (tokenHomeChain.rpcUrl && fromChain.rpcUrl !== tokenHomeChain.rpcUrl);
-            
-            if (needsUpdate) {
+            const matchingSetupForChain = data.icttSetup.find(
+              (setup: ICTTSetup) =>
+                setup.tokenHomeChainId === sourceChainId ||
+                setup.tokenRemoteChainId === sourceChainId
+            );
+
+            if (matchingSetupForChain) {
+              const isHomeChainMatch = matchingSetupForChain.tokenHomeChainId === sourceChainId;
+              const matchedChainInfo = isHomeChainMatch
+                ? matchingSetupForChain.tokenHomeChain
+                : matchingSetupForChain.tokenRemoteChain;
+
+              const derivedRpcUrl = getRpcUrlForChain(matchedChainInfo);
+              const derivedChainId = getChainIdForChain(matchedChainInfo);
+
               isUpdatingFromChainRef.current = true;
-              
+
               setFromChain((prevChain) => {
                 if (!prevChain) {
                   isUpdatingFromChainRef.current = false;
                   return prevChain;
                 }
-                
-                // Check if update is actually needed (rpcUrl changed)
-                if (tokenHomeChain.rpcUrl && prevChain.rpcUrl === tokenHomeChain.rpcUrl) {
+
+                const updatedChain = {
+                  ...prevChain,
+                  name: matchedChainInfo.name || prevChain.name,
+                  symbol: matchedChainInfo.nativeTokenSymbol || prevChain.symbol,
+                  logoUrl: matchedChainInfo.logoUrl || prevChain.logoUrl,
+                  blockchainId: matchedChainInfo.blockchainId || prevChain.blockchainId,
+                  rpcUrl: derivedRpcUrl || prevChain.rpcUrl,
+                  chainId: derivedChainId || prevChain.chainId,
+                  color: matchedChainInfo.name ? getColorFromName(matchedChainInfo.name) : prevChain.color,
+                };
+
+                const fieldsToCheck: (keyof ChainOption)[] = [
+                  'name',
+                  'symbol',
+                  'logoUrl',
+                  'blockchainId',
+                  'rpcUrl',
+                  'chainId',
+                  'color',
+                ];
+
+                const needsUpdate = fieldsToCheck.some(
+                  (field) => updatedChain[field] !== prevChain[field]
+                );
+
+                if (!needsUpdate) {
                   isUpdatingFromChainRef.current = false;
                   return prevChain;
                 }
-                
-                // Update fromChain with all available data from tokenHomeChain
-                // fromChain IS tokenHomeChain, so use all data from API
-                const updatedChain = {
-                  ...prevChain,
-                  rpcUrl: tokenHomeChain.rpcUrl || prevChain.rpcUrl,
-                  // Ensure we have all the chain info from the API
-                  name: tokenHomeChain.name || prevChain.name,
-                  symbol: tokenHomeChain.nativeTokenSymbol || prevChain.symbol,
-                  logoUrl: tokenHomeChain.logoUrl || prevChain.logoUrl,
-                };
-                
-                console.log('Updated fromChain with tokenHomeChain:', {
-                  previous: prevChain,
-                  updated: updatedChain,
-                  tokenHomeChain: tokenHomeChain,
-                });
-                
-                // Reset flag after state update
+
                 setTimeout(() => {
                   isUpdatingFromChainRef.current = false;
                 }, 0);
-                
+
                 return updatedChain;
               });
+            } else {
+              isUpdatingFromChainRef.current = false;
             }
           }
           
-          // Extract unique tokens from tokenHomeToken
+          // Extract unique tokens from sendToken
           const tokenMap = new Map<string, TokenOption>();
           
           data.icttSetup.forEach((setup: ICTTSetup) => {
-            const tokenKey = setup.tokenHomeToken.address.toLowerCase();
+            if (!setup.sendToken) {
+              return;
+            }
+            const isHomeChainContext = setup.tokenHomeChainId === sourceChainId;
+            const bridgeContractAddress = isHomeChainContext ? setup.tokenHomeAddress : setup.tokenRemoteAddress;
+            const counterpartTokenAddress = isHomeChainContext ? setup.tokenRemoteAddress : setup.tokenHomeAddress;
+            const tokenKey = setup.sendToken.address.toLowerCase();
             if (!tokenMap.has(tokenKey)) {
               tokenMap.set(tokenKey, {
-                symbol: setup.tokenHomeToken.symbol,
-                name: setup.tokenHomeToken.name,
-                address: setup.tokenHomeToken.address,
-                color: getColorFromName(setup.tokenHomeToken.name),
+                symbol: setup.sendToken.symbol,
+                name: setup.sendToken.name,
+                address: setup.sendToken.address,
+                color: getColorFromName(setup.sendToken.name),
+                decimals: setup.sendToken.decimals,
                 icttSetupId: setup.id,
-                bridgeContractAddress: setup.tokenHomeAddress,
+                bridgeContractAddress,
+                remoteAddress: counterpartTokenAddress,
+                isHomeChainToken: isHomeChainContext,
               });
             }
           });
@@ -379,6 +482,7 @@ export default function AvalinkMain() {
           setFromToken(null);
           setAvailableToChains([]);
           setToChain(null);
+          setActiveIcttSetup(null);
           // Reset refs
           prevTokenAddressRef.current = null;
           prevToChainIdRef.current = null;
@@ -392,6 +496,7 @@ export default function AvalinkMain() {
           setFromToken(null);
           setAvailableToChains([]);
           setToChain(null);
+        setActiveIcttSetup(null);
           prevFromChainIdRef.current = null;
         }
       } catch (error) {
@@ -404,6 +509,7 @@ export default function AvalinkMain() {
         setFromToken(null);
         setAvailableToChains([]);
         setToChain(null);
+        setActiveIcttSetup(null);
         prevFromChainIdRef.current = null;
       } finally {
         setLoadingTokens(false);
@@ -430,9 +536,10 @@ export default function AvalinkMain() {
     }
 
     const fetchToChains = async () => {
-      if (!fromToken || icttSetups.length === 0) {
+      if (!fromChain || !fromToken || icttSetups.length === 0) {
         setAvailableToChains([]);
         setToChain(null);
+        setActiveIcttSetup(null);
         prevTokenAddressRef.current = null;
         return;
       }
@@ -441,24 +548,45 @@ export default function AvalinkMain() {
         setLoadingToChains(true);
         
         // Filter ICTT setups that match the selected token
-        const matchingSetups = icttSetups.filter(
-          (setup: ICTTSetup) => setup.tokenHomeToken.address.toLowerCase() === fromToken.address.toLowerCase()
-        );
+        const sourceChainId = fromChain?.id || null;
+        const matchingSetups = icttSetups.filter((setup: ICTTSetup) => {
+          if (!setup.sendToken) {
+            return false;
+          }
+          const matchesToken = setup.sendToken.address.toLowerCase() === fromToken.address.toLowerCase();
+          const matchesSource =
+            sourceChainId === null ||
+            setup.tokenHomeChainId === sourceChainId ||
+            setup.tokenRemoteChainId === sourceChainId;
+          return matchesToken && matchesSource;
+        });
         
         const toChains: ChainOption[] = [];
         
         matchingSetups.forEach((setup: ICTTSetup) => {
+          if (!sourceChainId) {
+            return;
+          }
+          const isHomeChainContext = setup.tokenHomeChainId === sourceChainId;
+          const destinationChain = isHomeChainContext ? setup.tokenRemoteChain : setup.tokenHomeChain;
+          const destinationBlockchainId = destinationChain.blockchainId;
+          if (!destinationBlockchainId) {
+            return;
+          }
+          const derivedRpcUrl = getRpcUrlForChain(destinationChain);
+          const destinationTokenAddress = isHomeChainContext ? setup.tokenRemoteAddress : setup.tokenHomeAddress;
+          const originBridgeAddress = isHomeChainContext ? setup.tokenHomeAddress : setup.tokenRemoteAddress;
           toChains.push({
-            id: setup.tokenRemoteChain.blockchainId,
-            name: setup.tokenRemoteChain.name,
-            symbol: setup.tokenRemoteChain.nativeTokenSymbol,
-            logoUrl: setup.tokenRemoteChain.logoUrl,
-            color: getColorFromName(setup.tokenRemoteChain.name),
-            blockchainId: setup.tokenRemoteChain.blockchainId,
-            tokenRemoteAddress: setup.tokenRemoteAddress,
-            tokenHomeAddress: setup.tokenHomeAddress,
+            id: destinationBlockchainId,
+            name: destinationChain.name,
+            symbol: destinationChain.nativeTokenSymbol,
+            logoUrl: destinationChain.logoUrl,
+            color: getColorFromName(destinationChain.name),
+            blockchainId: destinationBlockchainId,
+            tokenRemoteAddress: destinationTokenAddress,
+            tokenHomeAddress: originBridgeAddress,
             icttSetupId: setup.id,
-            rpcUrl: setup.tokenRemoteChain.rpcUrl,
+            rpcUrl: derivedRpcUrl,
           });
         });
         
@@ -481,6 +609,7 @@ export default function AvalinkMain() {
           });
         } else {
           setToChain(null);
+          setActiveIcttSetup(null);
           prevToChainIdRef.current = null;
         }
 
@@ -501,7 +630,7 @@ export default function AvalinkMain() {
 
     fetchToChains();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fromToken?.address, icttSetups.length]);
+  }, [fromToken?.address, icttSetups.length, fromChain?.id]);
 
   // Update token's bridge contract and remote address when destination chain is selected
   useEffect(() => {
@@ -517,11 +646,26 @@ export default function AvalinkMain() {
     }
 
     // Find the ICTT setup that matches both token and destination chain
-    const matchingSetup = icttSetups.find(
-      (setup: ICTTSetup) =>
-        setup.tokenHomeToken.address.toLowerCase() === fromToken.address.toLowerCase() &&
-        setup.tokenRemoteChain.blockchainId === toChain.blockchainId
-    );
+    const sourceChainId = fromChain?.id || null;
+    const matchingSetup = icttSetups.find((setup: ICTTSetup) => {
+      if (!setup.sendToken) {
+        return false;
+      }
+      if (!sourceChainId) {
+        return false;
+      }
+      const isHomeChainContext = setup.tokenHomeChainId === sourceChainId;
+      const destinationBlockchainId = isHomeChainContext
+        ? setup.tokenRemoteChain.blockchainId
+        : setup.tokenHomeChain.blockchainId;
+      if (!destinationBlockchainId) {
+        return false;
+      }
+      return (
+        setup.sendToken.address.toLowerCase() === fromToken.address.toLowerCase() &&
+        destinationBlockchainId === toChain.blockchainId
+      );
+    });
 
     if (matchingSetup) {
       // Set flag to prevent the other useEffect from running
@@ -534,35 +678,51 @@ export default function AvalinkMain() {
           return prevToken;
         }
         
+        const isHomeChainContext = sourceChainId !== null && matchingSetup.tokenHomeChainId === sourceChainId;
+        const remoteAddress = isHomeChainContext ? matchingSetup.tokenRemoteAddress : matchingSetup.tokenHomeAddress;
+        const bridgeContractAddress = isHomeChainContext ? matchingSetup.tokenHomeAddress : matchingSetup.tokenRemoteAddress;
+        const normalizedPrevRemote = prevToken.remoteAddress?.toLowerCase();
+        const normalizedRemote = remoteAddress?.toLowerCase();
+        const normalizedPrevBridge = prevToken.bridgeContractAddress?.toLowerCase();
+        const normalizedBridge = bridgeContractAddress?.toLowerCase();
+
         // Check if update is needed
         if (
-          prevToken.remoteAddress?.toLowerCase() === matchingSetup.tokenRemoteAddress.toLowerCase() &&
-          prevToken.bridgeContractAddress?.toLowerCase() === matchingSetup.tokenHomeAddress.toLowerCase() &&
+          normalizedPrevRemote === normalizedRemote &&
+          normalizedPrevBridge === normalizedBridge &&
           prevToken.icttSetupId === matchingSetup.id
         ) {
           isUpdatingTokenRef.current = false;
           return prevToken; // No change needed
         }
-        
-        // Update ref after setting state
+
+        const updatedToken = {
+          ...prevToken,
+          remoteAddress,
+          bridgeContractAddress,
+          icttSetupId: matchingSetup.id,
+        };
+
+        // Update flag after setting state
         setTimeout(() => {
           isUpdatingTokenRef.current = false;
         }, 0);
-        
-        return {
-          ...prevToken,
-          remoteAddress: matchingSetup.tokenRemoteAddress,
-          bridgeContractAddress: matchingSetup.tokenHomeAddress,
-          icttSetupId: matchingSetup.id,
-        };
+
+        return updatedToken;
       });
 
       // Update ref
       prevToChainIdRef.current = currentToChainId;
+      setActiveIcttSetup(matchingSetup);
+      if (matchingSetup.sendToken?.decimals !== undefined) {
+        setTokenDecimals(matchingSetup.sendToken.decimals);
+      }
+    } else {
+      setActiveIcttSetup(null);
     }
     // Use stable identifiers instead of objects to prevent infinite loops
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toChain?.blockchainId, fromToken?.address, icttSetups.length]);
+  }, [toChain?.blockchainId, fromToken?.address, icttSetups.length, fromChain?.id]);
 
   // Theme handled in provider; keep to force re-render on toggle if needed
   useEffect(() => {}, [darkMode]);
@@ -605,6 +765,7 @@ export default function AvalinkMain() {
       setFromToken(null);
       setToChain(null);
       setAvailableToChains([]);
+      setActiveIcttSetup(null);
       // Reset refs
       prevTokenAddressRef.current = null;
       prevToChainIdRef.current = null;
@@ -621,84 +782,145 @@ export default function AvalinkMain() {
 
   const selectToken = (token: TokenOption) => {
     setFromToken(token);
+    setTokenDecimals(token.decimals ?? null);
     setShowTokenModal(false);
   };
 
-  const handleGetStarted = async () => {
+  // Helper function to get correct RPC URL from chain info
+  const getRpcUrlForChain = (chain: ICTTSetup['tokenHomeChain'] | ICTTSetup['tokenRemoteChain']): string | undefined => {
+    // Primary: Use rpcUrl from API if available
+    if (chain.rpcUrl) {
+      console.log(`Using rpcUrl from API for ${chain.name}:`, chain.rpcUrl);
+      return chain.rpcUrl;
+    }
+    
+    // Fallback: Derive from explorerUrl or blockchainId (for backwards compatibility)
+    console.warn(`No rpcUrl in API response for ${chain.name}, attempting to derive...`);
+    
+    if (chain.explorerUrl) {
+      // For C-Chain (Fuji testnet)
+      if (chain.explorerUrl.includes('c-chain') || chain.blockchainId === '0x7fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d5') {
+        return 'https://api.avax-test.network/ext/bc/C/rpc';
+      }
+      
+      // For other subnets, append /rpc to explorerUrl
+      if (chain.explorerUrl.includes('subnets-test.avax.network')) {
+        return `${chain.explorerUrl}/rpc`;
+      }
+    }
+    
+    console.error(`Could not determine RPC URL for chain ${chain.name}`);
+    return undefined;
+  };
+
+  // Helper to get numeric chainId from blockchain
+  const getChainIdForChain = (chain: ICTTSetup['tokenHomeChain'] | ICTTSetup['tokenRemoteChain']): string | undefined => {
+    // C-Chain Fuji testnet
+    if (chain.blockchainId === '0x7fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d5') {
+      return '43113'; // Fuji C-Chain
+    }
+    
+    // Dispatch L1
+    if (chain.blockchainId === '0x9f49313c3f022e9fe5b6e7c1d98f0f53d86e53456c5e075e1881cac1c15968e4') {
+      return '918'; // Dispatch subnet chain ID
+    }
+    
+    // If we can't determine, return undefined
+    return undefined;
+  };
+
+  const handleSend = async () => {
+    console.log('=== PRE-SEND DEBUG ===', {
+      fromChain: {
+        id: fromChain?.id,
+        name: fromChain?.name,
+        chainId: fromChain?.chainId,
+        rpcUrl: fromChain?.rpcUrl,
+      },
+      fromToken: {
+        symbol: fromToken?.symbol,
+        address: fromToken?.address,
+        bridgeContract: fromToken?.bridgeContractAddress,
+      },
+      toChain: {
+        name: toChain?.name,
+        blockchainId: toChain?.blockchainId,
+        remoteAddress: toChain?.tokenRemoteAddress,
+      },
+    });
+
     if (!connectedWallet) {
+      setLocalError('Wallet not connected');
       setShowWalletModal(true);
       return;
     }
     
     if (!fromToken || !fromChain || !toChain || !fromAmount || parseFloat(fromAmount) <= 0) {
-      setToastMessage('Please select chain, token, and enter an amount');
+      const validationMessage = 'Please select chain, token, and enter an amount';
+      setLocalError(validationMessage);
+      setToastMessage(validationMessage);
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
       return;
     }
 
-    // Get RPC URL from stored ICTT setups (most reliable source from API)
-    // fromChain IS tokenHomeChain, so get rpcUrl from tokenHomeChain in ICTT setups
-    let rpcUrl = fromChain.rpcUrl;
+    if (!walletAddress) {
+      const walletMessage = 'Unable to resolve wallet address. Please reconnect your wallet.';
+      setLocalError(walletMessage);
+      setToastMessage(walletMessage);
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+      return;
+    }
+
+    // Get RPC URL - use activeIcttSetup if available, otherwise fallback to fromChain
+    let rpcUrl: string | undefined;
     
-    console.log('Getting RPC URL:', {
-      fromChainRpcUrl: fromChain.rpcUrl,
-      fromChainId: fromChain.id,
-      fromChainName: fromChain.name,
-      icttSetupsCount: icttSetups.length,
-      fromTokenAddress: fromToken.address,
-    });
-    
-    // Always check ICTT setups first since fromChain IS tokenHomeChain
-    if (icttSetups.length > 0) {
-      // Find setup that matches the current token
-      const matchingSetup = icttSetups.find(
-        (setup: ICTTSetup) => 
-          setup.tokenHomeToken.address.toLowerCase() === fromToken.address.toLowerCase()
-      );
-      
-      console.log('Matching setup for token:', {
-        found: !!matchingSetup,
-        tokenHomeChainRpcUrl: matchingSetup?.tokenHomeChain.rpcUrl,
-        tokenHomeChain: matchingSetup?.tokenHomeChain,
+    if (activeIcttSetup) {
+      rpcUrl = getRpcUrlForChain(activeIcttSetup.tokenHomeChain);
+      console.log('Got RPC URL from activeIcttSetup:', {
+        chain: activeIcttSetup.tokenHomeChain.name,
+        rpcUrl,
+        blockchainId: activeIcttSetup.tokenHomeChain.blockchainId,
       });
-      
-      // Get RPC URL from tokenHomeChain (the source chain in the setup)
-      // fromChain IS tokenHomeChain, so this is the correct source
-      if (matchingSetup?.tokenHomeChain.rpcUrl) {
-        rpcUrl = matchingSetup.tokenHomeChain.rpcUrl;
-      } else if (icttSetups[0]?.tokenHomeChain.rpcUrl) {
-        // Fallback to first setup's tokenHomeChain
-        rpcUrl = icttSetups[0].tokenHomeChain.rpcUrl;
-      }
-      
-      // If still no rpcUrl, log all available setups for debugging
-      if (!rpcUrl) {
-        console.warn('No rpcUrl found in tokenHomeChain. All setups:', icttSetups.map(s => ({
-          tokenHomeChain: s.tokenHomeChain.name,
-          hasRpcUrl: !!s.tokenHomeChain.rpcUrl,
-          rpcUrl: s.tokenHomeChain.rpcUrl,
-          tokenHomeChainKeys: Object.keys(s.tokenHomeChain),
-        })));
-      }
+    } else if (fromChain.rpcUrl) {
+      rpcUrl = fromChain.rpcUrl;
+      console.log('Using RPC URL from fromChain:', rpcUrl);
     }
     
-    // Final fallback: try to find it in availableChains
-    if (!rpcUrl) {
-      const chainWithRpc = availableChains.find(c => c.id === fromChain.id && c.rpcUrl);
-      rpcUrl = chainWithRpc?.rpcUrl;
-    }
-    
-    console.log('Final RPC URL:', rpcUrl);
+    console.log('=== RPC URL RESOLUTION ===', {
+      hasActiveIcttSetup: !!activeIcttSetup,
+      fromChainRpcUrl: fromChain.rpcUrl,
+      resolvedRpcUrl: rpcUrl,
+      fromChainName: fromChain.name,
+    });
 
     if (!rpcUrl || !toChain.blockchainId || !toChain.tokenRemoteAddress || !toChain.tokenHomeAddress || !fromToken.bridgeContractAddress) {
-      setToastMessage(`Missing bridge configuration. Please try again. fromChain.rpcUrl: ${rpcUrl || 'missing'}, toChain.blockchainId: ${toChain.blockchainId || 'missing'}, toChain.tokenRemoteAddress: ${toChain.tokenRemoteAddress || 'missing'}, toChain.tokenHomeAddress: ${toChain.tokenHomeAddress || 'missing'}, fromToken.bridgeContractAddress: ${fromToken.bridgeContractAddress || 'missing'}`);
+      const configMessage = `Missing bridge configuration. Please try again. fromChain.rpcUrl: ${rpcUrl || 'missing'}, toChain.blockchainId: ${toChain.blockchainId || 'missing'}, toChain.tokenRemoteAddress: ${toChain.tokenRemoteAddress || 'missing'}, toChain.tokenHomeAddress: ${toChain.tokenHomeAddress || 'missing'}, fromToken.bridgeContractAddress: ${fromToken.bridgeContractAddress || 'missing'}`;
+      setLocalError(configMessage);
+      setToastMessage(configMessage);
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
       return;
     }
 
+    setLocalError('');
+    setCriticalError(null);
+    setIsProcessingSend(true);
+    setLastApprovalTxId(undefined);
+    setLastSendTxId(undefined);
+    setLastSendTxDetails(null);
+    setMessageID(null);
+
     try {
+      console.log('Starting handleSend', {
+        fromAmount,
+        fromToken,
+        fromChain,
+        toChain,
+        walletAddress,
+      });
+      setLastSendTxDetails({ source: { initiatedAt: Date.now() } });
       setToastMessage('Initiating bridge transaction...');
       setShowToast(true);
 
@@ -707,8 +929,41 @@ export default function AvalinkMain() {
         throw new Error('Wallet not connected');
       }
       
-      // Note: User should ensure wallet is connected to the correct network
-      // Network switching would require wallet-specific implementation
+      // Verify network - get current chain ID from wallet
+      const network = await provider.getNetwork();
+      const currentChainId = network.chainId.toString();
+      
+      console.log('Network info:', {
+        currentChainId,
+        currentChainIdHex: '0x' + Number(currentChainId).toString(16),
+        fromChainId: fromChain.id,
+        fromChainName: fromChain.name,
+        rpcUrl,
+      });
+
+      if (fromChain.chainId) {
+        try {
+          const expectedChainId = BigInt(fromChain.chainId);
+          if (expectedChainId !== network.chainId) {
+            const mismatchMessage =
+              `Wallet is connected to chainId ${network.chainId} (hex 0x${network.chainId.toString(16)}) ` +
+              `but ${fromChain.name} expects chainId ${expectedChainId} (hex 0x${expectedChainId.toString(16)}). ` +
+              'Switch networks in your wallet and try again.';
+            console.error('Network verification failed:', mismatchMessage);
+            throw new Error(mismatchMessage);
+          }
+          console.log('Network verification passed', {
+            expectedChainId: expectedChainId.toString(),
+            expectedChainIdHex: '0x' + expectedChainId.toString(16),
+          });
+        } catch (networkCheckError) {
+          throw networkCheckError instanceof Error
+            ? networkCheckError
+            : new Error(String(networkCheckError));
+        }
+      } else {
+        console.warn('fromChain.chainId not provided; skipping strict network verification.');
+      }
 
       // Create contracts
       const tokenContract = new ethers.Contract(
@@ -728,26 +983,80 @@ export default function AvalinkMain() {
         signer
       );
 
+      // Verify contract exists on current network
+      const bridgeCodeCheck = await provider.getCode(fromToken.bridgeContractAddress!);
+      if (bridgeCodeCheck === '0x' || bridgeCodeCheck === '0x0') {
+        throw new Error(
+          `Bridge contract not found at ${fromToken.bridgeContractAddress} on the current network (Chain ID: ${currentChainId}). ` +
+          `Please make sure your wallet is connected to the correct network (${fromChain.name}).`
+        );
+      }
+
+      const tokenCodeCheck = await provider.getCode(fromToken.address);
+      if (tokenCodeCheck === '0x' || tokenCodeCheck === '0x0') {
+        throw new Error(
+          `Token contract not found at ${fromToken.address} on the current network (Chain ID: ${currentChainId}). ` +
+          `Please make sure your wallet is connected to the correct network (${fromChain.name}).`
+        );
+      }
+
       // Convert amount to wei
       const decimals = await tokenContract.decimals();
+      setTokenDecimals(Number(decimals));
       const amount = ethers.parseUnits(fromAmount, decimals);
 
       // Check user balance
       const userAddress = await signer.getAddress();
       const balance = await tokenContract.balanceOf(userAddress);
+      setTokenBalance(balance);
+      
+      console.log('Balance check:', {
+        userAddress,
+        balance: balance.toString(),
+        balanceFormatted: ethers.formatUnits(balance, decimals),
+        requestedAmount: amount.toString(),
+        requestedAmountFormatted: fromAmount,
+        tokenAddress: fromToken.address,
+        decimals,
+      });
+      
       if (balance < amount) {
-        throw new Error(`Insufficient balance. You have ${ethers.formatUnits(balance, decimals)} tokens, but trying to send ${fromAmount}`);
+        throw new Error(`Insufficient balance. You have ${ethers.formatUnits(balance, decimals)} ${fromToken.symbol}, but trying to send ${fromAmount} ${fromToken.symbol}`);
       }
 
       // Check and approve allowance - approve the bridge contract to spend tokens
       const bridgeContractAddress = fromToken.bridgeContractAddress!;
       const allowance = await tokenContract.allowance(userAddress, bridgeContractAddress);
+      setTokenAllowance(allowance);
+      
+      console.log('Allowance check:', {
+        currentAllowance: allowance.toString(),
+        currentAllowanceFormatted: ethers.formatUnits(allowance, decimals),
+        requiredAmount: amount.toString(),
+        requiredAmountFormatted: fromAmount,
+        bridgeContractAddress,
+        needsApproval: allowance < amount,
+      });
+      
       if (allowance < amount) {
         setToastMessage('Approving token spending...');
         try {
-          const approveTx = await tokenContract.approve(bridgeContractAddress, amount);
+          console.log('Approving MaxUint256 to minimise repeated approvals.');
+          const approveTx = await tokenContract.approve(bridgeContractAddress, ethers.MaxUint256);
+          console.log('Approval transaction sent:', approveTx.hash);
+          setLastApprovalTxId(approveTx.hash);
           await approveTx.wait();
           setToastMessage('Approval confirmed. Sending tokens...');
+          console.log('Approval confirmed');
+          const updatedAllowance = await tokenContract.allowance(userAddress, bridgeContractAddress);
+          setTokenAllowance(updatedAllowance);
+          console.log('Updated allowance after approval:', {
+            updatedAllowance: updatedAllowance.toString(),
+            updatedAllowanceFormatted: ethers.formatUnits(updatedAllowance, decimals),
+          });
+          if (updatedAllowance < amount) {
+            throw new Error('Allowance is still insufficient after approval. Please try again.');
+          }
         } catch (approveError: unknown) {
           console.error('Approval error:', approveError);
           const errorMessage = approveError instanceof Error 
@@ -757,28 +1066,46 @@ export default function AvalinkMain() {
             : 'Unknown error';
           throw new Error(`Failed to approve tokens: ${errorMessage}`);
         }
+      } else {
+        console.log('Sufficient allowance already exists, skipping approval');
       }
 
       // Prepare bridge transaction
-      // Ensure blockchainId is exactly 32 bytes (0x-prefixed hex string)
-      const blockchainIdHex = toChain.blockchainId!.startsWith('0x') 
-        ? toChain.blockchainId! 
-        : '0x' + toChain.blockchainId!;
-      
-      // Convert to bytes, pad to 32 bytes, then convert back to hex
-      const bytes = ethers.getBytes(blockchainIdHex);
-      if (bytes.length > 32) {
-        throw new Error(`BlockchainId too long: ${bytes.length} bytes. Maximum is 32 bytes.`);
-      }
-      
-      // Pad to 32 bytes (zeros on the left)
-      const paddedBytes = new Uint8Array(32);
-      paddedBytes.set(bytes, 32 - bytes.length);
-      const destinationBlockchainID = ethers.hexlify(paddedBytes);
+      let destinationBlockchainID: string;
+      try {
+        const blockchainIdHex = toChain.blockchainId!.startsWith('0x')
+          ? toChain.blockchainId!
+          : '0x' + toChain.blockchainId!;
 
-      // Validate it's exactly 32 bytes (66 chars with 0x)
-      if (destinationBlockchainID.length !== 66) {
-        throw new Error(`Invalid blockchainId format: ${toChain.blockchainId}. Must be 32 bytes (64 hex chars). Got: ${destinationBlockchainID} (${destinationBlockchainID.length} chars)`);
+        console.log('Processing blockchain ID:', {
+          original: toChain.blockchainId,
+          hex: blockchainIdHex,
+          length: blockchainIdHex.length,
+        });
+
+        const bytes = ethers.getBytes(blockchainIdHex);
+        if (bytes.length > 32) {
+          throw new Error(`BlockchainId too long: ${bytes.length} bytes. Maximum is 32 bytes.`);
+        }
+
+        const paddedBytes = new Uint8Array(32);
+        paddedBytes.set(bytes, 32 - bytes.length);
+        destinationBlockchainID = ethers.hexlify(paddedBytes);
+
+        if (destinationBlockchainID.length !== 66) {
+          throw new Error(
+            `Invalid blockchainId format: ${toChain.blockchainId}. Must be 32 bytes (64 hex chars). ` +
+            `Got: ${destinationBlockchainID} (${destinationBlockchainID.length} chars)`
+          );
+        }
+
+        console.log('Padded blockchain ID:', destinationBlockchainID);
+      } catch (blockchainIdError) {
+        console.error('Error processing blockchain ID:', blockchainIdError);
+        throw new Error(
+          `Invalid blockchain ID format: ${toChain.blockchainId}. ` +
+          `${blockchainIdError instanceof Error ? blockchainIdError.message : String(blockchainIdError)}`
+        );
       }
 
       const destinationTokenTransferrerAddress = toChain.tokenRemoteAddress;
@@ -786,7 +1113,14 @@ export default function AvalinkMain() {
       const primaryFeeTokenAddress = ethers.ZeroAddress; // Use native token for fees
       const primaryFee = BigInt(0); // No fee for now
       const secondaryFee = BigInt(0);
-      const requiredGasLimit = BigInt(100000); // Gas limit
+      // CRITICAL: Use 250,000 (250k) not 250 million! This is a common mistake
+      const gasLimitSource = requiredGasLimit && requiredGasLimit.trim() !== '' ? requiredGasLimit : '250000';
+      let parsedRequiredGasLimit: bigint;
+      try {
+        parsedRequiredGasLimit = BigInt(gasLimitSource);
+      } catch (gasError) {
+        throw new Error(`Invalid required gas limit: ${gasLimitSource}`);
+      }
       const multiHopFallback = ethers.ZeroAddress;
 
       const sendInput = {
@@ -796,7 +1130,7 @@ export default function AvalinkMain() {
         primaryFeeTokenAddress,
         primaryFee,
         secondaryFee,
-        requiredGasLimit,
+        requiredGasLimit: parsedRequiredGasLimit,
         multiHopFallback,
       };
 
@@ -808,21 +1142,84 @@ export default function AvalinkMain() {
         throw new Error(`Invalid recipient address: ${recipient}`);
       }
 
-      console.log('Bridge transaction parameters:', {
+      console.log('=== BRIDGE TRANSACTION PARAMETERS ===');
+      console.log('Bridge Contract:', fromToken.bridgeContractAddress);
+      console.log('Amount:', {
+        raw: amount.toString(),
+        formatted: fromAmount,
+        decimals,
+      });
+      console.log('SendInput struct:', {
         destinationBlockchainID,
+        destinationBlockchainIDLength: destinationBlockchainID.length,
         destinationTokenTransferrerAddress,
         recipient,
-        amount: amount.toString(),
-        amountFormatted: fromAmount,
+        primaryFeeTokenAddress,
+        primaryFee: primaryFee.toString(),
+        secondaryFee: secondaryFee.toString(),
+        requiredGasLimit: parsedRequiredGasLimit.toString(),
+        multiHopFallback,
       });
+      console.log('Function call will be: bridgeContract.send(sendInput, amount)');
 
       // Send bridge transaction - use the bridge contract address
-      // First, try to estimate gas to get better error messages
+      // First, encode the transaction to see what we're actually sending
       try {
+        const encodedData = bridgeContract.interface.encodeFunctionData('send', [sendInput, amount]);
+        console.log('=== ENCODED TRANSACTION DATA ===');
+        console.log('Full encoded data:', encodedData);
+        console.log('Function selector (first 10 chars):', encodedData.substring(0, 10));
+        console.log('Expected selector for send(SendTokensInput,uint256):', '0x5d16225d');
+      } catch (encodeError) {
+        console.error('Failed to encode transaction:', encodeError);
+        throw encodeError;
+      }
+
+      // Build the transaction to verify all parameters
+      try {
+        console.log('=== BUILDING TRANSACTION ===');
+        const populatedTx = await bridgeContract.send.populateTransaction(sendInput, amount);
+        console.log('Populated transaction:', {
+          to: populatedTx.to,
+          from: populatedTx.from,
+          data: populatedTx.data?.substring(0, 100) + '...',
+          dataLength: populatedTx.data?.length,
+        });
+      } catch (populateError) {
+        console.error('Failed to populate transaction:', populateError);
+      }
+
+      // Try to estimate gas to get better error messages
+      try {
+        console.log('=== ATTEMPTING GAS ESTIMATION ===');
+        console.log('Calling: bridgeContract.send.estimateGas(sendInput, amount)');
+        console.log('With account:', userAddress);
         const gasEstimate = await bridgeContract.send.estimateGas(sendInput, amount);
-        console.log('Gas estimate:', gasEstimate.toString());
+        console.log('✅ Gas estimate successful:', gasEstimate.toString());
       } catch (estimateError: unknown) {
-        console.error('Gas estimation error:', estimateError);
+        console.error('❌ Gas estimation failed:', estimateError);
+        
+        // Provide detailed error information
+        let errorDetails = '';
+        if (estimateError && typeof estimateError === 'object') {
+          if ('code' in estimateError) {
+            errorDetails += `\nError code: ${estimateError.code}`;
+          }
+          if ('action' in estimateError) {
+            errorDetails += `\nAction: ${estimateError.action}`;
+          }
+        }
+        
+        // Common issues to check
+        const commonIssues = [
+          '\nPossible causes:',
+          '1. Your wallet is connected to the wrong network',
+          `2. Make sure you are connected to ${fromChain.name}`,
+          '3. The bridge contract may not be deployed on this network',
+          '4. Insufficient balance or allowance',
+          '5. The destination blockchain ID may be incorrect',
+        ].join('\n');
+        
         // Try to decode the error if possible
         if (estimateError && typeof estimateError === 'object' && 'data' in estimateError) {
           try {
@@ -830,33 +1227,75 @@ export default function AvalinkMain() {
             const errorData = estimateError as { data: unknown };
             if (errorData.data && typeof errorData.data === 'string') {
               const decodedError = bridgeContract.interface.parseError(errorData.data);
-              throw new Error(`Transaction would fail: ${decodedError?.name || 'Unknown error'}`);
+              throw new Error(`Transaction would fail: ${decodedError?.name || 'Unknown error'}${errorDetails}${commonIssues}`);
             }
-          } catch {
+          } catch (decodeError) {
             // If we can't decode, provide a more helpful message
             const errorMessage = estimateError instanceof Error 
               ? estimateError.message 
               : (estimateError && typeof estimateError === 'object' && 'reason' in estimateError && typeof estimateError.reason === 'string')
               ? estimateError.reason
-              : 'Please check your inputs and try again';
-            throw new Error(`Transaction would fail: ${errorMessage}`);
+              : 'Transaction validation failed';
+            throw new Error(`${errorMessage}${errorDetails}${commonIssues}`);
           }
         }
+        
         const errorMessage = estimateError instanceof Error 
           ? estimateError.message 
           : (estimateError && typeof estimateError === 'object' && 'reason' in estimateError && typeof estimateError.reason === 'string')
           ? estimateError.reason
-          : 'Please check your inputs and try again';
-        throw new Error(`Transaction would fail: ${errorMessage}`);
+          : 'Transaction validation failed';
+        throw new Error(`${errorMessage}${errorDetails}${commonIssues}`);
       }
 
       setToastMessage('Sending bridge transaction...');
       const tx = await bridgeContract.send(sendInput, amount);
+      setLastSendTxId(tx.hash);
       setToastMessage(`Transaction submitted: ${tx.hash}`);
       
       // Wait for transaction
-      const receipt = await tx.wait();
-      setToastMessage(`Bridge successful! Transaction: ${receipt.hash}`);
+      const receipt: ethers.TransactionReceipt = await tx.wait();
+      setLastSendTxDetails((prev) => ({
+        ...prev,
+        source: { ...prev?.source, confirmedAt: Date.now() },
+      }));
+
+      if (receipt?.hash) {
+        setToastMessage(`Bridge successful! Transaction: ${receipt.hash}`);
+      } else {
+        setToastMessage('Bridge transaction confirmed.');
+      }
+
+      const teleporterMessengerAddress = activeIcttSetup?.tokenHomeChain.teleporterAddress;
+      if (teleporterMessengerAddress && receipt?.logs?.length) {
+        try {
+          const teleporterInterface = new ethers.Interface(TeleporterMessengerABI.abi);
+          const messengerLog = receipt.logs.find(
+            (log) =>
+              log.address &&
+              log.address.toLowerCase() === teleporterMessengerAddress.toLowerCase()
+          );
+          if (messengerLog) {
+            const parsedLog = teleporterInterface.parseLog({
+              topics: Array.isArray(messengerLog.topics) ? messengerLog.topics : [],
+              data: messengerLog.data,
+            });
+            const potentialMessageId =
+              (parsedLog?.args as Record<string, unknown>)?.messageID ??
+              (parsedLog?.args as Record<string, unknown>)?.messageId;
+            if (typeof potentialMessageId === 'string') {
+              setMessageID(potentialMessageId);
+              setTryCount(0);
+            }
+          }
+        } catch (logError) {
+          console.warn('Failed to decode teleporter messenger log:', logError);
+        }
+      } else if (!teleporterMessengerAddress) {
+        console.warn('Teleporter messenger address unavailable for log decoding.');
+      }
+
+      await loadTokenInfo();
       
       // Reset form
       setFromAmount('');
@@ -865,9 +1304,13 @@ export default function AvalinkMain() {
     } catch (error: unknown) {
       console.error('Bridge error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Bridge transaction failed. Please try again.';
+      setLocalError(errorMessage);
+      setCriticalError(error instanceof Error ? error : new Error(String(error)));
       setToastMessage(errorMessage);
       setShowToast(true);
       setTimeout(() => setShowToast(false), 5000);
+    } finally {
+      setIsProcessingSend(false);
     }
   };
 
@@ -1106,15 +1549,37 @@ export default function AvalinkMain() {
             {/* From Token Input */}
             <div className={`${darkMode ? 'bg-gray-800/50' : 'bg-gray-100/50'} rounded-2xl p-4 mb-1 transition-colors duration-300`}>
               <div className="flex items-center justify-between mb-2">
+                <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Source Amount</span>
                 <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Source Chain</span>
               </div>
               <div className="flex items-center justify-between gap-3">
                 <input
                   type="number"
                   value={fromAmount}
-                  onChange={(e) => setFromAmount(e.target.value)}
+                  min={0}
+                  max={1000000}
+                  onChange={(e) => {
+                    const rawValue = e.target.value;
+                    if (rawValue === '') {
+                      setFromAmount('');
+                      return;
+                    }
+
+                    const numericValue = Number(rawValue);
+                    if (Number.isNaN(numericValue)) {
+                      return;
+                    }
+
+                    if (numericValue < 0) {
+                      setFromAmount('0');
+                    } else if (numericValue > MAX_TRANSFER_AMOUNT) {
+                      setFromAmount(MAX_TRANSFER_AMOUNT.toString());
+                    } else {
+                      setFromAmount(rawValue);
+                    }
+                  }}
                   placeholder="0"
-                  className={`bg-transparent text-4xl font-medium ${darkMode ? 'text-white' : 'text-gray-900'} outline-none w-full transition-colors duration-300`}
+                  className={`appearance-none bg-transparent text-4xl font-medium ${darkMode ? 'text-white' : 'text-gray-900'} outline-none w-full transition-colors duration-300`}
                 />
                 <button
                   onClick={() => setShowFromModal(true)}
@@ -1129,7 +1594,7 @@ export default function AvalinkMain() {
                           {fromChain.symbol.slice(0, 2)}
                         </div>
                       )}
-                      <span className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{fromChain.symbol}</span>
+                      <span className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{fromChain.name}</span>
                     </>
                   ) : (
                     <span className={`font-semibold ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -1184,6 +1649,7 @@ export default function AvalinkMain() {
             {/* To Token Input */}
             <div className={`${darkMode ? 'bg-gray-800/50' : 'bg-gray-100/50'} mt-1 rounded-2xl p-4 mb-3 transition-colors duration-300`}>
               <div className="flex items-center justify-between mb-2">
+                <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Destination Amount</span>
                 <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Destination Chain</span>
               </div>
               <div className="flex items-center justify-between gap-3">
@@ -1204,7 +1670,7 @@ export default function AvalinkMain() {
                           {toChain.symbol.slice(0, 2)}
                         </div>
                       )}
-                      <span className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{toChain.symbol}</span>
+                      <span className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{toChain.name}</span>
                     </>
                   ) : (
                     <span className={`font-semibold ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -1218,12 +1684,21 @@ export default function AvalinkMain() {
 
             {/* Bridge Tokens Button */}
             <button 
-              onClick={handleGetStarted}
-              disabled={!fromToken || !fromChain || !toChain}
-              className={`w-full py-4 bg-gradient-to-r from-red-500/20 to-red-600/20 hover:from-red-500/30 hover:to-red-600/30 text-red-500 rounded-2xl font-semibold text-lg border border-red-500/30 transition-all ${!fromToken || !fromChain || !toChain ? 'opacity-50 cursor-not-allowed' : ''}`}
+              onClick={handleSend}
+              disabled={!fromToken || !fromChain || !toChain || isProcessingSend}
+              className={`w-full py-4 bg-gradient-to-r from-red-500/20 to-red-600/20 hover:from-red-500/30 hover:to-red-600/30 text-red-500 rounded-2xl font-semibold text-lg border border-red-500/30 transition-all ${!fromToken || !fromChain || !toChain || isProcessingSend ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
-              {connectedWallet && fromToken && toChain ? `Receive ${toAmount || '0'} ${fromToken.symbol} on ${toChain.symbol}` : 'Get started'}
+              {isProcessingSend
+                ? 'Processing...'
+                : connectedWallet && fromToken && toChain
+                ? `Receive ${toAmount || '0'} ${fromToken.symbol} on ${toChain.symbol}`
+                : 'Get started'}
             </button>
+            {localError ? (
+              <p className="mt-2 text-center text-sm text-red-400">
+                {localError}
+              </p>
+            ) : null}
           </div>
 
           <p className={`text-center ${darkMode ? 'text-gray-400' : 'text-gray-500'} text-sm mt-6 transition-colors duration-300`}>

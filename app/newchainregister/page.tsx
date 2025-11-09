@@ -12,8 +12,6 @@ interface HomeChainFormData {
   tokenDecimals: string;
   teleporterManagerAddress: string;
   minTeleporterVersion: string;
-  teleporterMessengerDeploy: boolean;
-  teleporterMessengerAddress: string;
   teleporterRegistryDeploy: boolean;
   teleporterRegistryAddress: string;
 }
@@ -27,11 +25,11 @@ interface RemoteChainFormData {
   tokenSymbol: string;
   tokenDecimals: string;
   initialReserveImbalance: string;
-  teleporterMessengerDeploy: boolean;
-  teleporterMessengerAddress: string;
   teleporterRegistryDeploy: boolean;
   teleporterRegistryAddress: string;
 }
+
+const TELEPORTER_MESSENGER_ADDRESS = '0x253b2784c75e510dD0fF1da844684a1aC0aa5fcf';
 
 export default function NewChainRegisterPage() {
   const router = useRouter();
@@ -48,8 +46,6 @@ export default function NewChainRegisterPage() {
     tokenDecimals: '18',
     teleporterManagerAddress: '',
     minTeleporterVersion: '1',
-    teleporterMessengerDeploy: false,
-    teleporterMessengerAddress: '',
     teleporterRegistryDeploy: false,
     teleporterRegistryAddress: '',
   });
@@ -63,8 +59,6 @@ export default function NewChainRegisterPage() {
     tokenSymbol: '',
     tokenDecimals: '18',
     initialReserveImbalance: '0',
-    teleporterMessengerDeploy: false,
-    teleporterMessengerAddress: '',
     teleporterRegistryDeploy: false,
     teleporterRegistryAddress: '',
   });
@@ -90,14 +84,12 @@ export default function NewChainRegisterPage() {
       // If yes (checked), set deploy to false - user will provide contract addresses
       setHomeChain(prev => ({
         ...prev,
-        teleporterMessengerDeploy: false,
         teleporterRegistryDeploy: false,
       }));
     } else {
       // If no (unchecked), set deploy to true - contracts will be deployed
       setHomeChain(prev => ({
         ...prev,
-        teleporterMessengerDeploy: true,
         teleporterRegistryDeploy: true,
       }));
     }
@@ -110,14 +102,12 @@ export default function NewChainRegisterPage() {
       // If yes (checked), set deploy to false - user will provide contract addresses
       setRemoteChain(prev => ({
         ...prev,
-        teleporterMessengerDeploy: false,
         teleporterRegistryDeploy: false,
       }));
     } else {
       // If no (unchecked), set deploy to true - contracts will be deployed
       setRemoteChain(prev => ({
         ...prev,
-        teleporterMessengerDeploy: true,
         teleporterRegistryDeploy: true,
       }));
     }
@@ -144,8 +134,8 @@ export default function NewChainRegisterPage() {
           teleporterManagerAddress: homeChain.teleporterManagerAddress,
           minTeleporterVersion: parseInt(homeChain.minTeleporterVersion),
           teleporterMessenger: {
-            deploy: homeChain.teleporterMessengerDeploy,
-            contractAddress: homeChain.teleporterMessengerAddress,
+            deploy: false,
+            contractAddress: TELEPORTER_MESSENGER_ADDRESS,
           },
           teleporterRegistry: {
             deploy: homeChain.teleporterRegistryDeploy,
@@ -162,8 +152,8 @@ export default function NewChainRegisterPage() {
           tokenDecimals: parseInt(remoteChain.tokenDecimals),
           initialReserveImbalance: parseInt(remoteChain.initialReserveImbalance),
           teleporterMessenger: {
-            deploy: remoteChain.teleporterMessengerDeploy,
-            contractAddress: remoteChain.teleporterMessengerAddress,
+            deploy: false,
+            contractAddress: TELEPORTER_MESSENGER_ADDRESS,
           },
           teleporterRegistry: {
             deploy: remoteChain.teleporterRegistryDeploy,
@@ -198,8 +188,6 @@ export default function NewChainRegisterPage() {
         tokenDecimals: '18',
         teleporterManagerAddress: '',
         minTeleporterVersion: '1',
-        teleporterMessengerDeploy: false,
-        teleporterMessengerAddress: '',
         teleporterRegistryDeploy: false,
         teleporterRegistryAddress: '',
       });
@@ -213,8 +201,6 @@ export default function NewChainRegisterPage() {
         tokenSymbol: '',
         tokenDecimals: '18',
         initialReserveImbalance: '0',
-        teleporterMessengerDeploy: false,
-        teleporterMessengerAddress: '',
         teleporterRegistryDeploy: false,
         teleporterRegistryAddress: '',
       });
@@ -374,43 +360,6 @@ export default function NewChainRegisterPage() {
                   />
                 </div>
               </div>
-            </div>
-
-            {/* Teleporter Messenger Configuration */}
-            <div className={`mt-6 pt-6 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-              <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'} mb-4`}>
-                Teleporter Messenger
-              </h3>
-              {!homeChainHasICMSetup && (
-                <div className="flex items-center gap-3 mb-4">
-                  <input
-                    type="checkbox"
-                    id="home_teleporter_messenger_deploy"
-                    checked={homeChain.teleporterMessengerDeploy}
-                    onChange={(e) => handleHomeChainInputChange('teleporterMessengerDeploy', e.target.checked)}
-                    disabled
-                    className="w-5 h-5 text-red-500 bg-gray-800 border-gray-600 rounded focus:ring-red-500 cursor-not-allowed"
-                  />
-                  <label htmlFor="home_teleporter_messenger_deploy" className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                    Deploy Teleporter Messenger
-                  </label>
-                </div>
-              )}
-              {homeChainHasICMSetup && (
-                <div>
-                  <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                    Contract Address *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={homeChain.teleporterMessengerAddress}
-                    onChange={(e) => handleHomeChainInputChange('teleporterMessengerAddress', e.target.value)}
-                    className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all`}
-                    placeholder="0x253b2784c75e510dD0fF1da844684a1aC0aa5fcf"
-                  />
-                </div>
-              )}
             </div>
 
             {/* Teleporter Registry Configuration */}
@@ -612,43 +561,6 @@ export default function NewChainRegisterPage() {
                   />
                 </div>
               </div>
-            </div>
-
-            {/* Teleporter Messenger Configuration */}
-            <div className={`mt-6 pt-6 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-              <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'} mb-4`}>
-                Teleporter Messenger
-              </h3>
-              {!remoteChainHasICMSetup && (
-                <div className="flex items-center gap-3 mb-4">
-                  <input
-                    type="checkbox"
-                    id="remote_teleporter_messenger_deploy"
-                    checked={remoteChain.teleporterMessengerDeploy}
-                    onChange={(e) => handleRemoteChainInputChange('teleporterMessengerDeploy', e.target.checked)}
-                    disabled
-                    className="w-5 h-5 text-red-500 bg-gray-800 border-gray-600 rounded focus:ring-red-500 cursor-not-allowed"
-                  />
-                  <label htmlFor="remote_teleporter_messenger_deploy" className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                    Deploy Teleporter Messenger
-                  </label>
-                </div>
-              )}
-              {remoteChainHasICMSetup && (
-                <div>
-                  <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                    Contract Address *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={remoteChain.teleporterMessengerAddress}
-                    onChange={(e) => handleRemoteChainInputChange('teleporterMessengerAddress', e.target.value)}
-                    className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all`}
-                    placeholder="0x253b2784c75e510dD0fF1da844684a1aC0aa5fcf"
-                  />
-                </div>
-              )}
             </div>
 
             {/* Teleporter Registry Configuration */}
