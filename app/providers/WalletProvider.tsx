@@ -127,6 +127,7 @@ export default function WalletProvider({ children }: { children: React.ReactNode
       defaultNetwork={avalancheFuji}
       metadata={metadata}
       themeMode="dark"
+      allowUnsupportedChain
     >
       <WalletProviderInner>
         {children}
