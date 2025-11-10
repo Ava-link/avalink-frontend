@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import "@/css/computer.css";
+import "@/styles/css/computer.css";
 import WalletProvider from './providers/WalletProvider';
 import ClientLayout from './ClientLayout';
 

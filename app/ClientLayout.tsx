@@ -3,6 +3,7 @@
 import React from 'react';
 import Header from '@/components/Header';
 import { useWallet } from './providers/WalletProvider';
+import { useRouter } from 'next/navigation';
 
 interface ClientLayoutProps {
   children: React.ReactNode;
@@ -10,7 +11,7 @@ interface ClientLayoutProps {
 
 export default function ClientLayout({ children }: ClientLayoutProps) {
   const { darkMode, toggleDarkMode, connectedWallet, walletAddress, disconnect, connect } = useWallet();
-
+  const router = useRouter();
   return (
     <>
       <Header
@@ -22,6 +23,8 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
         onConnect={() => {
           connect().catch(() => {});
         }}
+        onNavigateHome={() => router.push('/')}
+        onNavigateAddChain={() => router.push('/addchain')}
       />
       {children}
     </>

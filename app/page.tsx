@@ -1601,61 +1601,63 @@ export default function AvalinkMain() {
           <div className={`${darkMode ? 'bg-gray-900/50' : 'bg-white/50'} backdrop-blur-xl rounded-3xl border ${darkMode ? 'border-gray-800/50' : 'border-gray-200'} p-3 shadow-2xl transition-colors duration-300`}>
             {/* From Token Input */}
             <div className={`${darkMode ? 'bg-gray-800/50' : 'bg-gray-100/50'} rounded-2xl p-4 mb-1 transition-colors duration-300`}>
-              <div className="flex items-center justify-between mb-2">
-                <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Source Amount</span>
-                <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Source Chain</span>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <input
-                  type="number"
-                  value={fromAmount}
-                  min={0}
-                  max={1000000}
-                  onChange={(e) => {
-                    const rawValue = e.target.value;
-                    if (rawValue === '') {
-                      setFromAmount('');
-                      return;
-                    }
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-1 w-full sm:w-auto order-1 sm:order-2">
+                  <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Source Chain</span>
+                  <button
+                    onClick={() => setShowFromModal(true)}
+                    className={`flex items-center gap-2 px-3 py-2 ${darkMode ? 'bg-gray-700/50 hover:bg-gray-700' : 'bg-gray-200 hover:bg-gray-300'} rounded-2xl transition-colors w-full sm:w-auto sm:flex-shrink-0 sm:min-w-[120px]`}
+                  >
+                    {fromChain ? (
+                      <>
+                        {fromChain.logoUrl ? (
+                          <Image src={fromChain.logoUrl} alt={fromChain.name} width={24} height={24} className="w-6 h-6 rounded-full object-cover" />
+                        ) : (
+                          <div className={`w-6 h-6 rounded-full bg-gradient-to-br ${fromChain.color} flex items-center justify-center text-white text-xs font-bold`}>
+                            {fromChain.symbol.slice(0, 2)}
+                          </div>
+                        )}
+                        <span className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{fromChain.name}</span>
+                      </>
+                    ) : (
+                      <span className={`font-semibold ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {loadingChains ? 'Loading...' : 'Select chain'}
+                      </span>
+                    )}
+                    <ChevronDown className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+                  </button>
+                </div>
+                <div className="flex flex-col gap-1 w-full order-2 sm:order-1 sm:flex-1">
+                  <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Source Amount</span>
+                  <input
+                    type="number"
+                    value={fromAmount}
+                    min={0}
+                    max={1000000}
+                    onChange={(e) => {
+                      const rawValue = e.target.value;
+                      if (rawValue === '') {
+                        setFromAmount('');
+                        return;
+                      }
 
-                    const numericValue = Number(rawValue);
-                    if (Number.isNaN(numericValue)) {
-                      return;
-                    }
+                      const numericValue = Number(rawValue);
+                      if (Number.isNaN(numericValue)) {
+                        return;
+                      }
 
-                    if (numericValue < 0) {
-                      setFromAmount('0');
-                    } else if (numericValue > MAX_TRANSFER_AMOUNT) {
-                      setFromAmount(MAX_TRANSFER_AMOUNT.toString());
-                    } else {
-                      setFromAmount(rawValue);
-                    }
-                  }}
-                  placeholder="0"
-                  className={`appearance-none bg-transparent text-4xl font-medium ${darkMode ? 'text-white' : 'text-gray-900'} outline-none w-full transition-colors duration-300`}
-                />
-                <button
-                  onClick={() => setShowFromModal(true)}
-                  className={`flex items-center gap-2 px-3 py-2 ${darkMode ? 'bg-gray-700/50 hover:bg-gray-700' : 'bg-gray-200 hover:bg-gray-300'} rounded-2xl transition-colors flex-shrink-0 min-w-[120px]`}
-                >
-                  {fromChain ? (
-                    <>
-                      {fromChain.logoUrl ? (
-                        <Image src={fromChain.logoUrl} alt={fromChain.name} width={24} height={24} className="w-6 h-6 rounded-full object-cover" />
-                      ) : (
-                        <div className={`w-6 h-6 rounded-full bg-gradient-to-br ${fromChain.color} flex items-center justify-center text-white text-xs font-bold`}>
-                          {fromChain.symbol.slice(0, 2)}
-                        </div>
-                      )}
-                      <span className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{fromChain.name}</span>
-                    </>
-                  ) : (
-                    <span className={`font-semibold ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                      {loadingChains ? 'Loading...' : 'Select chain'}
-                    </span>
-                  )}
-                  <ChevronDown className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
-                </button>
+                      if (numericValue < 0) {
+                        setFromAmount('0');
+                      } else if (numericValue > MAX_TRANSFER_AMOUNT) {
+                        setFromAmount(MAX_TRANSFER_AMOUNT.toString());
+                      } else {
+                        setFromAmount(rawValue);
+                      }
+                    }}
+                    placeholder="0"
+                    className={`appearance-none bg-transparent text-4xl font-medium ${darkMode ? 'text-white' : 'text-gray-900'} outline-none w-full transition-colors duration-300`}
+                  />
+                </div>
               </div>
             </div>
 
@@ -1701,37 +1703,39 @@ export default function AvalinkMain() {
 
             {/* To Token Input */}
             <div className={`${darkMode ? 'bg-gray-800/50' : 'bg-gray-100/50'} mt-1 rounded-2xl p-4 mb-3 transition-colors duration-300`}>
-              <div className="flex items-center justify-between mb-2">
-                <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Destination Amount</span>
-                <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Destination Chain</span>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <div className={`text-4xl font-medium ${darkMode ? 'text-white' : 'text-gray-900'} w-full transition-colors duration-300`}>
-                  {toAmount || '0'}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-1 w-full sm:w-auto order-1 sm:order-2">
+                  <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Destination Chain</span>
+                  <button
+                    onClick={() => setShowToModal(true)}
+                    disabled={availableToChains.length === 0}
+                    className={`flex items-center gap-2 px-3 py-2 ${darkMode ? 'bg-gray-700/50 hover:bg-gray-700' : 'bg-gray-200 hover:bg-gray-300'} rounded-2xl transition-colors w-full sm:w-auto sm:flex-shrink-0 sm:min-w-[120px] ${availableToChains.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    {toChain ? (
+                      <>
+                        {toChain.logoUrl ? (
+                          <Image src={toChain.logoUrl} alt={toChain.name} width={24} height={24} className="w-6 h-6 rounded-full object-cover" />
+                        ) : (
+                          <div className={`w-6 h-6 rounded-full bg-gradient-to-br ${toChain.color} flex items-center justify-center text-white text-xs font-bold`}>
+                            {toChain.symbol.slice(0, 2)}
+                          </div>
+                        )}
+                        <span className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{toChain.name}</span>
+                      </>
+                    ) : (
+                      <span className={`font-semibold ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {loadingToChains ? 'Loading...' : availableToChains.length === 0 && fromToken ? 'No chains available' : availableToChains.length === 0 ? (fromToken ? 'No chains available' : 'Select token first') : 'Select chain'}
+                      </span>
+                    )}
+                    <ChevronDown className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+                  </button>
                 </div>
-                <button
-                  onClick={() => setShowToModal(true)}
-                  disabled={availableToChains.length === 0}
-                  className={`flex items-center gap-2 px-3 py-2 ${darkMode ? 'bg-gray-700/50 hover:bg-gray-700' : 'bg-gray-200 hover:bg-gray-300'} rounded-2xl transition-colors flex-shrink-0 min-w-[120px] ${availableToChains.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  {toChain ? (
-                    <>
-                      {toChain.logoUrl ? (
-                        <Image src={toChain.logoUrl} alt={toChain.name} width={24} height={24} className="w-6 h-6 rounded-full object-cover" />
-                      ) : (
-                        <div className={`w-6 h-6 rounded-full bg-gradient-to-br ${toChain.color} flex items-center justify-center text-white text-xs font-bold`}>
-                          {toChain.symbol.slice(0, 2)}
-                        </div>
-                      )}
-                      <span className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{toChain.name}</span>
-                    </>
-                  ) : (
-                    <span className={`font-semibold ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                      {loadingToChains ? 'Loading...' : availableToChains.length === 0 && fromToken ? 'No chains available' : availableToChains.length === 0 ? (fromToken ? 'No chains available' : 'Select token first') : 'Select chain'}
-                    </span>
-                  )}
-                  <ChevronDown className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
-                </button>
+                <div className="flex flex-col gap-1 w-full order-2 sm:order-1 sm:flex-1">
+                  <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Destination Amount</span>
+                  <div className={`text-4xl font-medium ${darkMode ? 'text-white' : 'text-gray-900'} w-full transition-colors duration-300`}>
+                    {toAmount || '0'}
+                  </div>
+                </div>
               </div>
             </div>
 

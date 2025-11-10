@@ -5,7 +5,9 @@
     align-items: center;
     justify-content: center;
     margin: 0 auto;
-    overflow: hidden;
+    width: 100%;
+    max-width: 340px;
+    overflow: visible;
   }
   
   #computer .computer-graphic {
@@ -147,4 +149,11 @@
         0 10px 0 var(--light-blue);
       }
     }
+  
+  @media (max-width: 480px) {
+    #computer {
+      transform: scale(0.85);
+      transform-origin: top center;
+    }
+  }
   

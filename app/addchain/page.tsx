@@ -5,6 +5,7 @@ import { ArrowLeft, X, Info } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useWallet } from '../providers/WalletProvider';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 
 interface HomeChainFormData {
@@ -42,6 +43,12 @@ export default function AddChainPage() {
   const [homeChainHasICMSetup, setHomeChainHasICMSetup] = useState<boolean>(false);
   const [remoteChainHasICMSetup, setRemoteChainHasICMSetup] = useState<boolean>(false);
   const [bridgeType, setBridgeType] = useState<'erc20-erc20' | 'erc20-native' | 'native-erc20' | 'native-native'>('erc20-erc20');
+  const bridgeTypeOptions: { value: 'erc20-erc20' | 'erc20-native' | 'native-erc20' | 'native-native'; label: string }[] = [
+    { value: 'erc20-erc20', label: 'ERC-20 to ERC-20' },
+    { value: 'erc20-native', label: 'ERC-20 to Native' },
+    { value: 'native-erc20', label: 'Native to ERC-20' },
+    { value: 'native-native', label: 'Native to Native' },
+  ];
   const [homeChain, setHomeChain] = useState<HomeChainFormData>({
     rpcUrl: '',
     blockchainId: '',
@@ -249,30 +256,46 @@ export default function AddChainPage() {
           </p>
         </div>
 
-        <div className='mb-4'>
-          <Tabs
-            value={bridgeType}
-            onValueChange={(value) => setBridgeType(value as typeof bridgeType)}
-            className="w-full md:w-auto"
-            darkMode={darkMode}
-          >
-            <TabsList
-              className="grid w-full grid-cols-2 gap-2 md:flex md:w-auto md:items-center md:justify-center md:space-x-2 md:gap-0"
+        <div className='mb-4 space-y-3'>
+          <div className="md:hidden">
+            <Select
+              value={bridgeType}
+              onValueChange={(value) => setBridgeType(value as typeof bridgeType)}
             >
-              <TabsTrigger value="erc20-erc20">
-                ERC-20 to ERC-20
-              </TabsTrigger>
-              <TabsTrigger value="erc20-native">
-                ERC-20 to Native
-              </TabsTrigger>
-              <TabsTrigger value="native-erc20">
-                Native to ERC-20
-              </TabsTrigger>
-              <TabsTrigger value="native-native">
-                Native to Native
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+              <SelectTrigger
+                className={`w-full ${darkMode ? 'bg-gray-900/60 border-gray-700 text-white hover:bg-gray-900' : 'bg-white border-gray-300 text-gray-900 hover:bg-gray-50'}`}
+              >
+                <SelectValue placeholder="Select bridge type" />
+              </SelectTrigger>
+              <SelectContent
+                className={`${darkMode ? 'bg-gray-900 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-200'}`}
+              >
+                {bridgeTypeOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="hidden md:block">
+            <Tabs
+              value={bridgeType}
+              onValueChange={(value) => setBridgeType(value as typeof bridgeType)}
+              className="w-full md:w-auto"
+              darkMode={darkMode}
+            >
+              <TabsList
+                className="grid w-full grid-cols-2 gap-2 md:flex md:w-auto md:items-center md:justify-center md:space-x-2 md:gap-0"
+              >
+                {bridgeTypeOptions.map((option) => (
+                  <TabsTrigger key={option.value} value={option.value}>
+                    {option.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          </div>
         </div>
 
         {bridgeType === 'erc20-erc20' ? (
@@ -653,8 +676,8 @@ export default function AddChainPage() {
           </div>
         </form>
         ) : (
-          <div className={`flex flex-col items-center justify-center gap-2 py-24 rounded-3xl border ${darkMode ? 'border-gray-800/50 bg-gray-900/30 text-gray-400' : 'border-gray-200 bg-gray-50 text-gray-600'} transition-colors`}>
-            <div id="computer" className="w-1/2 h-1/2">
+          <div className={`flex flex-col items-center justify-center gap-4 py-24 rounded-3xl border ${darkMode ? 'border-gray-800/50 bg-gray-900/30 text-gray-400' : 'border-gray-200 bg-gray-50 text-gray-600'} transition-colors`}>
+            <div id="computer" className="w-full max-w-[340px] mx-auto">
               <span className="computer-graphic" />
             </div>
             <p className="text-4xl font-semibold">Coming soon...</p>
