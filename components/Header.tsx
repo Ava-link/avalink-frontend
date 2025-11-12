@@ -7,6 +7,7 @@ import {
   SheetContent,
   SheetTrigger,
 } from '@/components/ui/sheet';
+import Image from 'next/image';
 
 export default function Header({ 
   darkMode, 
@@ -60,10 +61,12 @@ export default function Header({
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 flex items-center justify-center">
             {/* Black outer triangle */}
-            <div className="w-0 h-0 border-l-[10px] border-r-[10px] border-b-[20px] border-l-transparent border-r-transparent border-b-black relative">
+            {/* <div className="w-0 h-0 border-l-[10px] border-r-[10px] border-b-[20px] border-l-transparent border-r-transparent border-b-black relative"> */}
               {/* Red inner triangle */}
-              <div className="absolute top-[1px] -left-[8px] w-0 h-0 border-l-[8px] border-r-[8px] border-b-[16px] border-l-transparent border-r-transparent border-b-red-500" />
-            </div>
+              {/* <div className="absolute top-[1px] -left-[8px] w-0 h-0 border-l-[8px] border-r-[8px] border-b-[16px] border-l-transparent border-r-transparent border-b-red-500" /> */}
+            {/* </div> */}
+
+            <Image src="/avalinktempNoBG.png" alt="Avalink" width={32} height={32} />
           </div>
           <span className={`text-lg md:text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
             Avalink

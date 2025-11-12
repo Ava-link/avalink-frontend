@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ArrowLeft, X, Info } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useWallet } from '../providers/WalletProvider';
@@ -13,8 +13,6 @@ interface HomeChainFormData {
   blockchainId: string;
   tokenAddress: string;
   tokenDecimals: string;
-  teleporterManagerAddress: string;
-  minTeleporterVersion: string;
   teleporterRegistryDeploy: boolean;
   teleporterRegistryAddress: string;
 }
@@ -22,14 +20,25 @@ interface HomeChainFormData {
 interface RemoteChainFormData {
   rpcUrl: string;
   blockchainId: string;
-  teleporterManagerAddress: string;
-  minTeleporterVersion: string;
   tokenName: string;
   tokenSymbol: string;
   tokenDecimals: string;
-  initialReserveImbalance: string;
   teleporterRegistryDeploy: boolean;
   teleporterRegistryAddress: string;
+}
+
+interface ChainInfo {
+  id: string;
+  name: string;
+  chainId: string;
+  rpcUrl?: string;
+  blockchainId?: string;
+  teleporterRegistryAddress?: string;
+  isTestnet?: boolean;
+  hasIcmEnabled?: boolean;
+  logoUrl?: string;
+  nativeTokenName?: string;
+  nativeTokenSymbol?: string;
 }
 
 const TELEPORTER_MESSENGER_ADDRESS = '0x253b2784c75e510dD0fF1da844684a1aC0aa5fcf';
@@ -40,8 +49,8 @@ export default function AddChainPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
-  const [homeChainHasICMSetup, setHomeChainHasICMSetup] = useState<boolean>(false);
-  const [remoteChainHasICMSetup, setRemoteChainHasICMSetup] = useState<boolean>(false);
+  const [homeChainHasICMSetup, setHomeChainHasICMSetup] = useState<boolean>(true);
+  const [remoteChainHasICMSetup, setRemoteChainHasICMSetup] = useState<boolean>(true);
   const [bridgeType, setBridgeType] = useState<'erc20-erc20' | 'erc20-native' | 'native-erc20' | 'native-native'>('erc20-erc20');
   const bridgeTypeOptions: { value: 'erc20-erc20' | 'erc20-native' | 'native-erc20' | 'native-native'; label: string }[] = [
     { value: 'erc20-erc20', label: 'ERC-20 to ERC-20' },
@@ -54,8 +63,6 @@ export default function AddChainPage() {
     blockchainId: '',
     tokenAddress: '',
     tokenDecimals: '18',
-    teleporterManagerAddress: '',
-    minTeleporterVersion: '1',
     teleporterRegistryDeploy: false,
     teleporterRegistryAddress: '',
   });
@@ -63,21 +70,211 @@ export default function AddChainPage() {
   const [remoteChain, setRemoteChain] = useState<RemoteChainFormData>({
     rpcUrl: '',
     blockchainId: '',
-    teleporterManagerAddress: '',
-    minTeleporterVersion: '1',
     tokenName: '',
     tokenSymbol: '',
     tokenDecimals: '18',
-    initialReserveImbalance: '0',
     teleporterRegistryDeploy: false,
     teleporterRegistryAddress: '',
   });
+
+  const [availableChains, setAvailableChains] = useState<ChainInfo[]>([]);
+  const [selectedHomeChainId, setSelectedHomeChainId] = useState<string>('__custom');
+  const [selectedRemoteChainId, setSelectedRemoteChainId] = useState<string>('__custom');
+  const [homeChainDisabledFields, setHomeChainDisabledFields] = useState<Partial<Record<keyof HomeChainFormData, boolean>>>(
+    {}
+  );
+  const [remoteChainDisabledFields, setRemoteChainDisabledFields] = useState<Partial<Record<keyof RemoteChainFormData, boolean>>>(
+    {}
+  );
+  const [homeChainICMDisabled, setHomeChainICMDisabled] = useState(false);
+  const [remoteChainICMDisabled, setRemoteChainICMDisabled] = useState(false);
+  const [chainsLoading, setChainsLoading] = useState(false);
+  const [chainsError, setChainsError] = useState<string | null>(null);
+
+  const teleporter_manager_address =
+    process.env.NEXT_PUBLIC_TELEPORTER_MANAGER_ADDRESS;
+
+  useEffect(() => {
+    const fetchChains = async () => {
+      setChainsLoading(true);
+      setChainsError(null);
+      try {
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002';
+        const response = await fetch(`${backendUrl}/deploy/chains`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch chains (status ${response.status})`);
+        }
+
+        const data = await response.json();
+        if (Array.isArray(data?.chain)) {
+          setAvailableChains(data.chain);
+        } else {
+          throw new Error('Unexpected response while fetching chains');
+        }
+      } catch (error) {
+        console.error('Error fetching chains:', error);
+        setChainsError(error instanceof Error ? error.message : 'Unable to load chains');
+      } finally {
+        setChainsLoading(false);
+      }
+    };
+
+    fetchChains();
+  }, []);
 
   const handleHomeChainInputChange = (field: keyof HomeChainFormData, value: string | boolean) => {
     setHomeChain(prev => ({
       ...prev,
       [field]: value
     }));
+  };
+
+  const handleHomeChainSelect = (chainId: string) => {
+    if (chainId === '__custom') {
+      setSelectedHomeChainId('__custom');
+      setHomeChainDisabledFields({});
+      setHomeChainICMDisabled(false);
+      setHomeChain(prev => ({
+        ...prev,
+        teleporterRegistryDeploy: false,
+      }));
+      return;
+    }
+
+    setSelectedHomeChainId(chainId);
+
+    if (selectedRemoteChainId === chainId) {
+      handleRemoteChainSelect('__custom');
+    }
+
+    const selectedChain = availableChains.find(chain => chain.id === chainId);
+    if (!selectedChain) {
+      setHomeChainDisabledFields({});
+      setHomeChainICMDisabled(false);
+      return;
+    }
+
+    setHomeChain(prev => {
+      const updated = { ...prev };
+      const disabled: Partial<Record<keyof HomeChainFormData, boolean>> = {};
+
+      if (selectedChain.rpcUrl) {
+        updated.rpcUrl = selectedChain.rpcUrl;
+        disabled.rpcUrl = true;
+      } else {
+        disabled.rpcUrl = false;
+      }
+
+      if (selectedChain.blockchainId) {
+        updated.blockchainId = selectedChain.blockchainId;
+        disabled.blockchainId = true;
+      } else {
+        disabled.blockchainId = false;
+      }
+
+      if (selectedChain.teleporterRegistryAddress) {
+        updated.teleporterRegistryAddress = selectedChain.teleporterRegistryAddress;
+        disabled.teleporterRegistryAddress = true;
+      } else {
+        disabled.teleporterRegistryAddress = false;
+      }
+
+      setHomeChainDisabledFields(disabled);
+      return updated;
+    });
+
+    if (typeof selectedChain.hasIcmEnabled === 'boolean') {
+      setHomeChainHasICMSetup(selectedChain.hasIcmEnabled);
+      setHomeChainICMDisabled(true);
+      setHomeChain(prev => ({
+        ...prev,
+        teleporterRegistryDeploy: !selectedChain.hasIcmEnabled,
+      }));
+    } else {
+      setHomeChainICMDisabled(false);
+    }
+  };
+
+  const handleRemoteChainSelect = (chainId: string) => {
+    if (chainId === '__custom') {
+      setSelectedRemoteChainId('__custom');
+      setRemoteChainDisabledFields({});
+      setRemoteChainICMDisabled(false);
+      setRemoteChain(prev => ({
+        ...prev,
+        rpcUrl: '',
+        blockchainId: '',
+        tokenName: '',
+        tokenSymbol: '',
+        teleporterRegistryAddress: '',
+        teleporterRegistryDeploy: false,
+      }));
+      return;
+    }
+
+    setSelectedRemoteChainId(chainId);
+
+    const selectedChain = availableChains.find(chain => chain.id === chainId);
+    if (!selectedChain) {
+      setRemoteChainDisabledFields({});
+      setRemoteChainICMDisabled(false);
+      return;
+    }
+
+    setRemoteChain(prev => {
+      const updated = { ...prev };
+      const disabled: Partial<Record<keyof RemoteChainFormData, boolean>> = {};
+
+      if (selectedChain.rpcUrl) {
+        updated.rpcUrl = selectedChain.rpcUrl;
+        disabled.rpcUrl = true;
+      } else {
+        updated.rpcUrl = '';
+        disabled.rpcUrl = false;
+      }
+
+      if (selectedChain.blockchainId) {
+        updated.blockchainId = selectedChain.blockchainId;
+        disabled.blockchainId = true;
+      } else {
+        updated.blockchainId = '';
+        disabled.blockchainId = false;
+      }
+
+      if (selectedChain.teleporterRegistryAddress) {
+        updated.teleporterRegistryAddress = selectedChain.teleporterRegistryAddress;
+        disabled.teleporterRegistryAddress = true;
+      } else {
+        updated.teleporterRegistryAddress = '';
+        disabled.teleporterRegistryAddress = false;
+      }
+
+      updated.tokenName = '';
+      disabled.tokenName = false;
+
+      updated.tokenSymbol = '';
+      disabled.tokenSymbol = false;
+
+      setRemoteChainDisabledFields(disabled);
+      return updated;
+    });
+
+    if (typeof selectedChain.hasIcmEnabled === 'boolean') {
+      setRemoteChainHasICMSetup(selectedChain.hasIcmEnabled);
+      setRemoteChainICMDisabled(true);
+      setRemoteChain(prev => ({
+        ...prev,
+        teleporterRegistryDeploy: !selectedChain.hasIcmEnabled,
+      }));
+    } else {
+      setRemoteChainICMDisabled(false);
+    }
   };
 
   const handleRemoteChainInputChange = (field: keyof RemoteChainFormData, value: string | boolean) => {
@@ -141,8 +338,8 @@ export default function AddChainPage() {
           blockchainId: homeChain.blockchainId,
           tokenAddress: homeChain.tokenAddress,
           tokenDecimals: parseInt(homeChain.tokenDecimals),
-          teleporterManagerAddress: homeChain.teleporterManagerAddress,
-          minTeleporterVersion: parseInt(homeChain.minTeleporterVersion),
+          teleporterManagerAddress: teleporter_manager_address,
+          minTeleporterVersion: 1,
           teleporterMessenger: {
             deploy: false,
             contractAddress: TELEPORTER_MESSENGER_ADDRESS,
@@ -155,12 +352,12 @@ export default function AddChainPage() {
         remoteChain: {
           rpcUrl: remoteChain.rpcUrl,
           blockchainId: remoteChain.blockchainId,
-          teleporterManagerAddress: remoteChain.teleporterManagerAddress,
-          minTeleporterVersion: parseInt(remoteChain.minTeleporterVersion),
+          teleporterManagerAddress: teleporter_manager_address,
+          minTeleporterVersion: 1,
           tokenName: remoteChain.tokenName,
           tokenSymbol: remoteChain.tokenSymbol,
           tokenDecimals: parseInt(remoteChain.tokenDecimals),
-          initialReserveImbalance: parseInt(remoteChain.initialReserveImbalance),
+          initialReserveImbalance: 0,
           teleporterMessenger: {
             deploy: false,
             contractAddress: TELEPORTER_MESSENGER_ADDRESS,
@@ -196,8 +393,6 @@ export default function AddChainPage() {
         blockchainId: '',
         tokenAddress: '',
         tokenDecimals: '18',
-        teleporterManagerAddress: '',
-        minTeleporterVersion: '1',
         teleporterRegistryDeploy: false,
         teleporterRegistryAddress: '',
       });
@@ -205,15 +400,14 @@ export default function AddChainPage() {
       setRemoteChain({
         rpcUrl: '',
         blockchainId: '',
-        teleporterManagerAddress: '',
-        minTeleporterVersion: '1',
         tokenName: '',
         tokenSymbol: '',
         tokenDecimals: '18',
-        initialReserveImbalance: '0',
         teleporterRegistryDeploy: false,
         teleporterRegistryAddress: '',
       });
+      setHomeChainHasICMSetup(true);
+      setRemoteChainHasICMSetup(true);
       
       // Redirect to home page after a short delay
       setTimeout(() => {
@@ -302,10 +496,57 @@ export default function AddChainPage() {
         <form onSubmit={handleSubmit} className="space-y-8">
           {/* Home Chain Configuration Card */}
           <div className={`${darkMode ? 'bg-gray-900/50 border-gray-800/50' : 'bg-white/50 border-gray-200'} backdrop-blur-xl rounded-3xl border p-6 shadow-2xl`}>
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
               <h2 className={`text-2xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                 Home Chain Configuration
               </h2>
+              <div className="w-full md:w-auto">
+                <Select
+                  value={selectedHomeChainId}
+                  onValueChange={handleHomeChainSelect}
+                  disabled={chainsLoading}
+                >
+                  <SelectTrigger
+                    className={`w-full md:w-[280px] ${darkMode ? 'bg-gray-900/60 border-gray-800 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                  >
+                    <SelectValue placeholder={chainsLoading ? 'Loading chains...' : 'Select a chain'} />
+                  </SelectTrigger>
+                  <SelectContent className={`${darkMode ? 'bg-gray-900 text-white border-gray-800' : 'bg-white text-gray-900 border-gray-200'}`}>
+                    <SelectItem value="__custom">
+                      <span>Custom configuration</span>
+                    </SelectItem>
+                    {availableChains.map(chain => (
+                      <SelectItem
+                        key={chain.id}
+                        value={chain.id}
+                        disabled={selectedRemoteChainId !== '__custom' && chain.id === selectedRemoteChainId}
+                      >
+                        <div className="flex items-center gap-3">
+                          {chain.logoUrl && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={chain.logoUrl}
+                              alt={chain.name}
+                              className="h-5 w-5 rounded-full object-contain"
+                            />
+                          )}
+                          <span>{chain.name}</span>
+                          {chain.isTestnet && (
+                            <span className="ml-auto text-xs uppercase tracking-wide text-red-500">
+                              Testnet
+                            </span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {chainsError && (
+                  <p className="mt-2 text-sm text-red-500">
+                    {chainsError}
+                  </p>
+                )}
+              </div>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -318,7 +559,9 @@ export default function AddChainPage() {
                   required
                   value={homeChain.rpcUrl}
                   onChange={(e) => handleHomeChainInputChange('rpcUrl', e.target.value)}
-                  className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all`}
+                  disabled={!!homeChainDisabledFields.rpcUrl}
+                  readOnly={!!homeChainDisabledFields.rpcUrl}
+                  className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all ${homeChainDisabledFields.rpcUrl ? 'opacity-70 cursor-not-allowed' : ''}`}
                   placeholder="https://api.avax-test.network/ext/bc/C/rpc"
                 />
               </div>
@@ -332,37 +575,10 @@ export default function AddChainPage() {
                   required
                   value={homeChain.blockchainId}
                   onChange={(e) => handleHomeChainInputChange('blockchainId', e.target.value)}
-                  className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all`}
+                  disabled={!!homeChainDisabledFields.blockchainId}
+                  readOnly={!!homeChainDisabledFields.blockchainId}
+                  className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all ${homeChainDisabledFields.blockchainId ? 'opacity-70 cursor-not-allowed' : ''}`}
                   placeholder="0x7fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d5"
-                />
-              </div>
-
-              <div>
-                <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                  Teleporter Manager Address *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={homeChain.teleporterManagerAddress}
-                  onChange={(e) => handleHomeChainInputChange('teleporterManagerAddress', e.target.value)}
-                  className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all`}
-                  placeholder="0x50B2Ca22c3093fddA77b504960A9e9b7146e3cc1"
-                />
-              </div>
-
-              <div>
-                <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                  Min Teleporter Version *
-                </label>
-                <input
-                  type="number"
-                  required
-                  min="1"
-                  value={homeChain.minTeleporterVersion}
-                  onChange={(e) => handleHomeChainInputChange('minTeleporterVersion', e.target.value)}
-                  className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all`}
-                  placeholder="1"
                 />
               </div>
             </div>
@@ -412,7 +628,8 @@ export default function AddChainPage() {
                   id="home_icm_setup"
                   checked={homeChainHasICMSetup}
                   onCheckedChange={handleHomeChainICMSetupChange}
-                  className="data-[state=checked]:bg-red-500 data-[state=unchecked]:bg-gray-700/80"
+                  disabled={homeChainICMDisabled}
+                  className="data-[state=checked]:bg-red-500 data-[state=unchecked]:bg-gray-700/80 disabled:opacity-60 disabled:cursor-not-allowed"
                 />
                 <label htmlFor="home_icm_setup" className={`text-sm font-medium cursor-pointer ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                   Does your chain have a ICM setup?
@@ -445,7 +662,9 @@ export default function AddChainPage() {
                     required
                     value={homeChain.teleporterRegistryAddress}
                     onChange={(e) => handleHomeChainInputChange('teleporterRegistryAddress', e.target.value)}
-                    className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all`}
+                    disabled={!!homeChainDisabledFields.teleporterRegistryAddress}
+                    readOnly={!!homeChainDisabledFields.teleporterRegistryAddress}
+                    className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all ${homeChainDisabledFields.teleporterRegistryAddress ? 'opacity-70 cursor-not-allowed' : ''}`}
                     placeholder="0xF86Cb19Ad8405AEFa7d09C778215D2Cb6eBfB228"
                   />
                 </div>
@@ -459,6 +678,53 @@ export default function AddChainPage() {
               <h2 className={`text-2xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                 Remote Chain Configuration
               </h2>
+              <div className="w-full md:w-auto">
+                <Select
+                  value={selectedRemoteChainId}
+                  onValueChange={handleRemoteChainSelect}
+                  disabled={chainsLoading}
+                >
+                  <SelectTrigger
+                    className={`w-full md:w-[280px] ${darkMode ? 'bg-gray-900/60 border-gray-800 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                  >
+                    <SelectValue placeholder={chainsLoading ? 'Loading chains...' : 'Select a chain'} />
+                  </SelectTrigger>
+                  <SelectContent className={`${darkMode ? 'bg-gray-900 text-white border-gray-800' : 'bg-white text-gray-900 border-gray-200'}`}>
+                    <SelectItem value="__custom">
+                      <span>Custom configuration</span>
+                    </SelectItem>
+                    {availableChains.map(chain => (
+                      <SelectItem
+                        key={chain.id}
+                        value={chain.id}
+                        disabled={selectedHomeChainId !== '__custom' && chain.id === selectedHomeChainId}
+                      >
+                        <div className="flex items-center gap-3">
+                          {chain.logoUrl && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={chain.logoUrl}
+                              alt={chain.name}
+                              className="h-5 w-5 rounded-full object-contain"
+                            />
+                          )}
+                          <span>{chain.name}</span>
+                          {chain.isTestnet && (
+                            <span className="ml-auto text-xs uppercase tracking-wide text-red-500">
+                              Testnet
+                            </span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {chainsError && (
+                  <p className="mt-2 text-sm text-red-500">
+                    {chainsError}
+                  </p>
+                )}
+              </div>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -471,7 +737,9 @@ export default function AddChainPage() {
                   required
                   value={remoteChain.rpcUrl}
                   onChange={(e) => handleRemoteChainInputChange('rpcUrl', e.target.value)}
-                  className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all`}
+                  disabled={!!remoteChainDisabledFields.rpcUrl}
+                  readOnly={!!remoteChainDisabledFields.rpcUrl}
+                  className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all ${remoteChainDisabledFields.rpcUrl ? 'opacity-70 cursor-not-allowed' : ''}`}
                   placeholder="https://subnets.avax.network/dispatch/testnet/rpc"
                 />
               </div>
@@ -485,37 +753,10 @@ export default function AddChainPage() {
                   required
                   value={remoteChain.blockchainId}
                   onChange={(e) => handleRemoteChainInputChange('blockchainId', e.target.value)}
-                  className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all`}
+                  disabled={!!remoteChainDisabledFields.blockchainId}
+                  readOnly={!!remoteChainDisabledFields.blockchainId}
+                  className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all ${remoteChainDisabledFields.blockchainId ? 'opacity-70 cursor-not-allowed' : ''}`}
                   placeholder="0x9f49313c3f022e9fe5b6e7c1d98f0f53d86e53456c5e075e1881cac1c15968e4"
-                />
-              </div>
-
-              <div>
-                <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                  Teleporter Manager Address *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={remoteChain.teleporterManagerAddress}
-                  onChange={(e) => handleRemoteChainInputChange('teleporterManagerAddress', e.target.value)}
-                  className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all`}
-                  placeholder="0x50B2Ca22c3093fddA77b504960A9e9b7146e3cc1"
-                />
-              </div>
-
-              <div>
-                <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                  Min Teleporter Version *
-                </label>
-                <input
-                  type="number"
-                  required
-                  min="1"
-                  value={remoteChain.minTeleporterVersion}
-                  onChange={(e) => handleRemoteChainInputChange('minTeleporterVersion', e.target.value)}
-                  className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all`}
-                  placeholder="1"
                 />
               </div>
             </div>
@@ -544,7 +785,9 @@ export default function AddChainPage() {
                     required
                     value={remoteChain.tokenName}
                     onChange={(e) => handleRemoteChainInputChange('tokenName', e.target.value)}
-                    className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all`}
+                    disabled={!!remoteChainDisabledFields.tokenName}
+                    readOnly={!!remoteChainDisabledFields.tokenName}
+                    className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all ${remoteChainDisabledFields.tokenName ? 'opacity-70 cursor-not-allowed' : ''}`}
                     placeholder="Wrapped Avax"
                   />
                 </div>
@@ -567,7 +810,9 @@ export default function AddChainPage() {
                     required
                     value={remoteChain.tokenSymbol}
                     onChange={(e) => handleRemoteChainInputChange('tokenSymbol', e.target.value)}
-                    className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all`}
+                    disabled={!!remoteChainDisabledFields.tokenSymbol}
+                    readOnly={!!remoteChainDisabledFields.tokenSymbol}
+                    className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all ${remoteChainDisabledFields.tokenSymbol ? 'opacity-70 cursor-not-allowed' : ''}`}
                     placeholder="WAVAX"
                   />
                 </div>
@@ -588,19 +833,6 @@ export default function AddChainPage() {
                   />
                 </div>
 
-                <div>
-                  <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                    Initial Reserve Imbalance *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    value={remoteChain.initialReserveImbalance}
-                    onChange={(e) => handleRemoteChainInputChange('initialReserveImbalance', e.target.value)}
-                    className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all`}
-                    placeholder="0"
-                  />
-                </div>
               </div>
             </div>
 
@@ -611,7 +843,8 @@ export default function AddChainPage() {
                   id="remote_icm_setup"
                   checked={remoteChainHasICMSetup}
                   onCheckedChange={handleRemoteChainICMSetupChange}
-                  className="data-[state=checked]:bg-red-500 data-[state=unchecked]:bg-gray-700/80"
+                  disabled={remoteChainICMDisabled}
+                  className="data-[state=checked]:bg-red-500 data-[state=unchecked]:bg-gray-700/80 disabled:opacity-60 disabled:cursor-not-allowed"
                 />
                 <label htmlFor="remote_icm_setup" className={`text-sm font-medium cursor-pointer ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                   Does your chain have a ICM setup?
@@ -644,7 +877,9 @@ export default function AddChainPage() {
                     required
                     value={remoteChain.teleporterRegistryAddress}
                     onChange={(e) => handleRemoteChainInputChange('teleporterRegistryAddress', e.target.value)}
-                    className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all`}
+                    disabled={!!remoteChainDisabledFields.teleporterRegistryAddress}
+                    readOnly={!!remoteChainDisabledFields.teleporterRegistryAddress}
+                    className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all ${remoteChainDisabledFields.teleporterRegistryAddress ? 'opacity-70 cursor-not-allowed' : ''}`}
                     placeholder="0xF86Cb19Ad8405AEFa7d09C778215D2Cb6eBfB228"
                   />
                 </div>

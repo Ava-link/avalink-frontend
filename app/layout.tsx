@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   title: "Avalink",
   description: "Avalanche subnet bridge portal",
   icons: {
-    icon: "/avalinklogo.png",
+    icon: "/avalinktempNoBG.png",
   },
 };
 
