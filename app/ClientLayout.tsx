@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import Header from '@/components/Header';
+import { Header } from '@/components/Header';
 import { useWallet } from './providers/WalletProvider';
 import { useRouter } from 'next/navigation';
 
@@ -20,10 +20,11 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
         connectedWallet={!!connectedWallet}
         walletAddress={walletAddress}
         disconnectWallet={disconnect}
-        onConnect={() => {
-          connect().catch(() => {});
+        onConnect={async () => {
+          await connect().catch(() => {});
         }}
         onNavigateHome={() => router.push('/')}
+        onNavigateBridge={() => router.push('/bridge')}
         onNavigateAddChain={() => router.push('/addchain')}
       />
       {children}

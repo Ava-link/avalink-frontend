@@ -2,7 +2,6 @@
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "motion/react";
 import { useState, useEffect } from "react";
-import { IconSquareRoundedX } from "@tabler/icons-react";
 
 const CheckIcon = ({ className }: { className?: string }) => {
   return (
@@ -89,6 +88,7 @@ const LoaderCore = ({
             </div>
             <span
               className={cn(
+                "break-all whitespace-normal",
                 index === value
                   ? `${activeTextClass} opacity-100`
                   : index < value
@@ -111,7 +111,6 @@ export const MultiStepLoader = ({
   duration = 2000,
   loop = true,
   manualStepIndex,
-  onClose,
   variant = "fullscreen",
   className,
   themeMode = "dark",
@@ -121,7 +120,6 @@ export const MultiStepLoader = ({
   duration?: number;
   loop?: boolean;
   manualStepIndex?: number;
-  onClose?: () => void;
   variant?: "fullscreen" | "inline" | "floating";
   className?: string;
   themeMode?: "light" | "dark";

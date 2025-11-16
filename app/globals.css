@@ -61,3 +61,34 @@ body {
   background-color: #dc2626; /* Tailwind red-600 */
 }
 
+
+/* stripes  */
+@keyframes move-stripes-left-to-right {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: 0 0;
+  }
+}
+
+.animate-stripes-left-to-right {
+  background-size: 200% 200%;
+  animation: move-stripes-left-to-right 30s linear infinite;
+}
+
+
+/* block-grid  */
+@keyframes move-grid-right-to-left {
+  0% {
+    background-position: 20px 0; /* moves one full tile width */
+  }
+  100% {
+    background-position: 0 0;
+  }
+}
+
+.animate-grid-right-to-left {
+  background-size: 20px 20px; /* your exact size */
+  animation: move-grid-right-to-left 1.5s linear infinite;
+}

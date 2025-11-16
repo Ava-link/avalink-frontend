@@ -8,6 +8,10 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 
+import { cn } from "@/lib/utils";
+import { Orbitron } from "next/font/google";
+
+const orbitron = Orbitron({ subsets: ["latin"], weight: ["400","700"] });
 interface HomeChainFormData {
   rpcUrl: string;
   blockchainId: string;
@@ -425,501 +429,498 @@ export default function AddChainPage() {
   // darkMode and toggleDarkMode are provided by context in layout
 
   return (
-    <div className={`min-h-screen ${darkMode ? 'bg-gray-950' : 'bg-white'} transition-colors duration-300`}>
-      {/* Header is provided globally from layout */}
-
-      <main className="container mx-auto px-4 py-8 max-w-4xl">
-        {/* Back Button */}
-        <button
-          onClick={() => router.back()}
-          className={`flex items-center gap-2 mb-6 ${darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'} transition-colors`}
-        >
-          <ArrowLeft className="w-5 h-5" />
-          Back
-        </button>
-
-        {/* Page Title */}
-        <div className="mb-8">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <h1 className={`text-4xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-              Deploy Bridge
-            </h1>
-          </div>
-          <p className={`text-lg ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-            Configure and deploy a bridge between home and remote chains
+    <div className={cn("min-h-screen w-full transition-colors duration-300 p-2 md:p-4", orbitron.className, darkMode ? 'bg-[#0e0e0e] text-white' : 'bg-[#f2f2f2] text-black')}>
+      <div className="grid grid-cols-1 gap-2">
+        
+        {/* Page Title Block */}
+        <section className={cn("border p-6", darkMode ? 'border-gray-700' : 'border-black')}>
+          <h1 className="text-4xl md:text-5xl font-bold tracking-wide mb-2">
+            DEPLOY BRIDGE
+          </h1>
+          <p className={cn("text-sm tracking-widest", darkMode ? 'text-gray-400' : 'text-gray-600')}>
+            CONFIGURE AND DEPLOY A BRIDGE BETWEEN HOME AND REMOTE CHAINS
           </p>
-        </div>
-
-        <div className='mb-4 space-y-3'>
-          <div className="md:hidden">
-            <Select
-              value={bridgeType}
-              onValueChange={(value) => setBridgeType(value as typeof bridgeType)}
-            >
-              <SelectTrigger
-                className={`w-full ${darkMode ? 'bg-gray-900/60 border-gray-700 text-white hover:bg-gray-900' : 'bg-white border-gray-300 text-gray-900 hover:bg-gray-50'}`}
-              >
-                <SelectValue placeholder="Select bridge type" />
-              </SelectTrigger>
-              <SelectContent
-                className={`${darkMode ? 'bg-gray-900 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-200'}`}
-              >
-                {bridgeTypeOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        </section>
+  
+        {/* Bridge Type Selection Block */}
+        <section className={cn("border p-6", darkMode ? 'border-gray-700' : 'border-black')}>
+          <div className="mb-4">
+            <h3 className={cn("text-xs tracking-widest mb-3", darkMode ? 'text-gray-400' : 'text-gray-600')}>
+              BRIDGE TYPE
+            </h3>
           </div>
-          <div className="hidden md:block">
-            <Tabs
-              value={bridgeType}
-              onValueChange={(value) => setBridgeType(value as typeof bridgeType)}
-              className="w-full md:w-auto"
-              darkMode={darkMode}
-            >
-              <TabsList
-                className="grid w-full grid-cols-2 gap-2 md:flex md:w-auto md:items-center md:justify-center md:space-x-2 md:gap-0"
+          
+          <div className='space-y-3'>
+            <div className="md:hidden">
+              <Select
+                value={bridgeType}
+                onValueChange={(value) => setBridgeType(value as typeof bridgeType)}
               >
-                {bridgeTypeOptions.map((option) => (
-                  <TabsTrigger key={option.value} value={option.value}>
-                    {option.label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
+                <SelectTrigger
+                  className={cn("w-full border rounded-none tracking-wide", darkMode ? 'bg-[#0e0e0e]/60 border-gray-700 text-white hover:bg-[#0e0e0e]' : 'bg-white border-black text-gray-900 hover:bg-gray-50')}
+                >
+                  <SelectValue placeholder="SELECT BRIDGE TYPE" />
+                </SelectTrigger>
+                <SelectContent
+                  className={cn("rounded-none border", darkMode ? 'bg-[#0e0e0e] text-white border-gray-700' : 'bg-white text-gray-900 border-black')}
+                >
+                  {bridgeTypeOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value} className="tracking-wide">
+                      {option.label.toUpperCase()}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="hidden md:block">
+              <Tabs
+                value={bridgeType}
+                onValueChange={(value) => setBridgeType(value as typeof bridgeType)}
+                className="w-full md:w-auto"
+                darkMode={darkMode}
+              >
+                <TabsList
+                  className="grid w-full grid-cols-2 gap-2 md:flex md:w-auto md:items-center md:justify-center md:space-x-2 md:gap-0"
+                >
+                  {bridgeTypeOptions.map((option) => (
+                    <TabsTrigger key={option.value} value={option.value} className="tracking-wide">
+                      {option.label.toUpperCase()}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+            </div>
           </div>
-        </div>
-
+        </section>
+  
         {bridgeType === 'erc20-erc20' ? (
-        <form onSubmit={handleSubmit} className="space-y-8">
-          {/* Home Chain Configuration Card */}
-          <div className={`${darkMode ? 'bg-gray-900/50 border-gray-800/50' : 'bg-white/50 border-gray-200'} backdrop-blur-xl rounded-3xl border p-6 shadow-2xl`}>
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
-              <h2 className={`text-2xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                Home Chain Configuration
-              </h2>
-              <div className="w-full md:w-auto">
-                <Select
-                  value={selectedHomeChainId}
-                  onValueChange={handleHomeChainSelect}
-                  disabled={chainsLoading}
-                >
-                  <SelectTrigger
-                    className={`w-full md:w-[280px] ${darkMode ? 'bg-gray-900/60 border-gray-800 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+          <form onSubmit={handleSubmit} className="contents">
+            {/* Home Chain Configuration Block */}
+            <section className={cn("border p-6", darkMode ? 'border-gray-700' : 'border-black')}>
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
+                <h2 className="text-2xl font-bold tracking-wide">
+                  HOME CHAIN CONFIGURATION
+                </h2>
+                <div className="w-full md:w-auto">
+                  <Select
+                    value={selectedHomeChainId}
+                    onValueChange={handleHomeChainSelect}
+                    disabled={chainsLoading}
                   >
-                    <SelectValue placeholder={chainsLoading ? 'Loading chains...' : 'Select a chain'} />
-                  </SelectTrigger>
-                  <SelectContent className={`${darkMode ? 'bg-gray-900 text-white border-gray-800' : 'bg-white text-gray-900 border-gray-200'}`}>
-                    <SelectItem value="__custom">
-                      <span>Custom configuration</span>
-                    </SelectItem>
-                    {availableChains.map(chain => (
-                      <SelectItem
-                        key={chain.id}
-                        value={chain.id}
-                        disabled={selectedRemoteChainId !== '__custom' && chain.id === selectedRemoteChainId}
-                      >
-                        <div className="flex items-center gap-3">
-                          {chain.logoUrl && (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={chain.logoUrl}
-                              alt={chain.name}
-                              className="h-5 w-5 rounded-full object-contain"
-                            />
-                          )}
-                          <span>{chain.name}</span>
-                          {chain.isTestnet && (
-                            <span className="ml-auto text-xs uppercase tracking-wide text-red-500">
-                              Testnet
-                            </span>
-                          )}
-                        </div>
+                    <SelectTrigger
+                      className={cn("w-full md:w-[280px] border rounded-none tracking-wide", darkMode ? 'bg-[#0e0e0e]/60 border-gray-700 text-white' : 'bg-white border-black text-gray-900')}
+                    >
+                      <SelectValue placeholder={chainsLoading ? 'LOADING CHAINS...' : 'SELECT A CHAIN'} />
+                    </SelectTrigger>
+                    <SelectContent className={cn("rounded-none border", darkMode ? 'bg-[#0e0e0e] text-white border-gray-700' : 'bg-white text-gray-900 border-black')}>
+                      <SelectItem value="__custom">
+                        <span className="tracking-wide">CUSTOM CONFIGURATION</span>
                       </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {chainsError && (
-                  <p className="mt-2 text-sm text-red-500">
-                    {chainsError}
-                  </p>
-                )}
+                      {availableChains.map(chain => (
+                        <SelectItem
+                          key={chain.id}
+                          value={chain.id}
+                          disabled={selectedRemoteChainId !== '__custom' && chain.id === selectedRemoteChainId}
+                        >
+                          <div className="flex items-center gap-3">
+                            {chain.logoUrl && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={chain.logoUrl}
+                                alt={chain.name}
+                                className="h-5 w-5 rounded-full object-contain"
+                              />
+                            )}
+                            <span className="tracking-wide">{chain.name.toUpperCase()}</span>
+                            {chain.isTestnet && (
+                              <span className="ml-auto text-xs uppercase tracking-wide text-red-500">
+                                TESTNET
+                              </span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {chainsError && (
+                    <p className="mt-2 text-xs tracking-widest text-red-500">
+                      {chainsError}
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="md:col-span-2">
-                <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                  RPC URL *
-                </label>
-                <input
-                  type="url"
-                  required
-                  value={homeChain.rpcUrl}
-                  onChange={(e) => handleHomeChainInputChange('rpcUrl', e.target.value)}
-                  disabled={!!homeChainDisabledFields.rpcUrl}
-                  readOnly={!!homeChainDisabledFields.rpcUrl}
-                  className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all ${homeChainDisabledFields.rpcUrl ? 'opacity-70 cursor-not-allowed' : ''}`}
-                  placeholder="https://api.avax-test.network/ext/bc/C/rpc"
-                />
-              </div>
-
-              <div>
-                <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                  Blockchain ID *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={homeChain.blockchainId}
-                  onChange={(e) => handleHomeChainInputChange('blockchainId', e.target.value)}
-                  disabled={!!homeChainDisabledFields.blockchainId}
-                  readOnly={!!homeChainDisabledFields.blockchainId}
-                  className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all ${homeChainDisabledFields.blockchainId ? 'opacity-70 cursor-not-allowed' : ''}`}
-                  placeholder="0x7fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d5"
-                />
-              </div>
-            </div>
-
-            {/* Token Configuration */}
-            <div className={`mt-6 pt-6 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-              <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'} mb-4`}>
-                Token Configuration
-              </h3>
+              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="md:col-span-2">
+                  <label className={cn("block text-xs font-medium tracking-widest mb-2", darkMode ? 'text-gray-300' : 'text-gray-700')}>
+                    RPC URL *
+                  </label>
+                  <input
+                    type="url"
+                    required
+                    value={homeChain.rpcUrl}
+                    onChange={(e) => handleHomeChainInputChange('rpcUrl', e.target.value)}
+                    disabled={!!homeChainDisabledFields.rpcUrl}
+                    readOnly={!!homeChainDisabledFields.rpcUrl}
+                    className={cn("w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', homeChainDisabledFields.rpcUrl ? 'opacity-70 cursor-not-allowed' : '')}
+                    placeholder="https://api.avax-test.network/ext/bc/C/rpc"
+                  />
+                </div>
+  
                 <div>
-                  <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                    Token Address *
+                  <label className={cn("block text-xs font-medium tracking-widest mb-2", darkMode ? 'text-gray-300' : 'text-gray-700')}>
+                    BLOCKCHAIN ID *
                   </label>
                   <input
                     type="text"
                     required
-                    value={homeChain.tokenAddress}
-                    onChange={(e) => handleHomeChainInputChange('tokenAddress', e.target.value)}
-                    className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all`}
-                    placeholder="0x9dafF7B0c496591CC20Af1D8394FF1cB8696c9a7"
-                  />
-                </div>
-
-                <div>
-                  <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                    Token Decimals *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    min="0"
-                    max="18"
-                    value={homeChain.tokenDecimals}
-                    onChange={(e) => handleHomeChainInputChange('tokenDecimals', e.target.value)}
-                    className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all`}
-                    placeholder="18"
+                    value={homeChain.blockchainId}
+                    onChange={(e) => handleHomeChainInputChange('blockchainId', e.target.value)}
+                    disabled={!!homeChainDisabledFields.blockchainId}
+                    readOnly={!!homeChainDisabledFields.blockchainId}
+                    className={cn("w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', homeChainDisabledFields.blockchainId ? 'opacity-70 cursor-not-allowed' : '')}
+                    placeholder="0x7fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d5"
                   />
                 </div>
               </div>
-            </div>
-
-            {/* Teleporter Registry Configuration */}
-            <div className={`mt-6 pt-6 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-              <div className="flex items-center gap-3 mb-4">
-                <Switch
-                  id="home_icm_setup"
-                  checked={homeChainHasICMSetup}
-                  onCheckedChange={handleHomeChainICMSetupChange}
-                  disabled={homeChainICMDisabled}
-                  className="data-[state=checked]:bg-red-500 data-[state=unchecked]:bg-gray-700/80 disabled:opacity-60 disabled:cursor-not-allowed"
-                />
-                <label htmlFor="home_icm_setup" className={`text-sm font-medium cursor-pointer ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Does your chain have a ICM setup?
-                </label>
+  
+              {/* Token Configuration */}
+              <div className={cn("mt-6 pt-6 border-t", darkMode ? 'border-gray-700' : 'border-black')}>
+                <h3 className="text-lg font-bold tracking-wide mb-4">
+                  TOKEN CONFIGURATION
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className={cn("block text-xs font-medium tracking-widest mb-2", darkMode ? 'text-gray-300' : 'text-gray-700')}>
+                      TOKEN ADDRESS *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={homeChain.tokenAddress}
+                      onChange={(e) => handleHomeChainInputChange('tokenAddress', e.target.value)}
+                      className={cn("w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black')}
+                      placeholder="0x9dafF7B0c496591CC20Af1D8394FF1cB8696c9a7"
+                    />
+                  </div>
+  
+                  <div>
+                    <label className={cn("block text-xs font-medium tracking-widest mb-2", darkMode ? 'text-gray-300' : 'text-gray-700')}>
+                      TOKEN DECIMALS *
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      max="18"
+                      value={homeChain.tokenDecimals}
+                      onChange={(e) => handleHomeChainInputChange('tokenDecimals', e.target.value)}
+                      className={cn("w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black')}
+                      placeholder="18"
+                    />
+                  </div>
+                </div>
               </div>
-              <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'} mb-4`}>
-                Teleporter Registry
-              </h3>
-              {!homeChainHasICMSetup && (
+  
+              {/* Teleporter Registry Configuration */}
+              <div className={cn("mt-6 pt-6 border-t", darkMode ? 'border-gray-700' : 'border-black')}>
                 <div className="flex items-center gap-3 mb-4">
                   <Switch
-                    id="home_teleporter_registry_deploy"
-                    checked={homeChain.teleporterRegistryDeploy}
-                    onCheckedChange={(checked) => handleHomeChainInputChange('teleporterRegistryDeploy', checked)}
-                    disabled
-                    className="data-[state=checked]:bg-red-500 data-[state=unchecked]:bg-gray-700/60 disabled:opacity-60"
+                    id="home_icm_setup"
+                    checked={homeChainHasICMSetup}
+                    onCheckedChange={handleHomeChainICMSetupChange}
+                    disabled={homeChainICMDisabled}
+                    className="data-[state=checked]:bg-red-500 data-[state=unchecked]:bg-gray-700/80 disabled:opacity-60 disabled:cursor-not-allowed"
                   />
-                  <label htmlFor="home_teleporter_registry_deploy" className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                    Deploy Teleporter Registry
+                  <label htmlFor="home_icm_setup" className={cn("text-xs font-medium cursor-pointer tracking-widest", darkMode ? 'text-gray-300' : 'text-gray-700')}>
+                    DOES YOUR CHAIN HAVE AN ICM SETUP?
                   </label>
                 </div>
-              )}
-              {homeChainHasICMSetup && (
-                <div>
-                  <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                    Contract Address *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={homeChain.teleporterRegistryAddress}
-                    onChange={(e) => handleHomeChainInputChange('teleporterRegistryAddress', e.target.value)}
-                    disabled={!!homeChainDisabledFields.teleporterRegistryAddress}
-                    readOnly={!!homeChainDisabledFields.teleporterRegistryAddress}
-                    className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all ${homeChainDisabledFields.teleporterRegistryAddress ? 'opacity-70 cursor-not-allowed' : ''}`}
-                    placeholder="0xF86Cb19Ad8405AEFa7d09C778215D2Cb6eBfB228"
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Remote Chain Configuration Card */}
-          <div className={`${darkMode ? 'bg-gray-900/50 border-gray-800/50' : 'bg-white/50 border-gray-200'} backdrop-blur-xl rounded-3xl border p-6 shadow-2xl`}>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className={`text-2xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                Remote Chain Configuration
-              </h2>
-              <div className="w-full md:w-auto">
-                <Select
-                  value={selectedRemoteChainId}
-                  onValueChange={handleRemoteChainSelect}
-                  disabled={chainsLoading}
-                >
-                  <SelectTrigger
-                    className={`w-full md:w-[280px] ${darkMode ? 'bg-gray-900/60 border-gray-800 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
-                  >
-                    <SelectValue placeholder={chainsLoading ? 'Loading chains...' : 'Select a chain'} />
-                  </SelectTrigger>
-                  <SelectContent className={`${darkMode ? 'bg-gray-900 text-white border-gray-800' : 'bg-white text-gray-900 border-gray-200'}`}>
-                    <SelectItem value="__custom">
-                      <span>Custom configuration</span>
-                    </SelectItem>
-                    {availableChains.map(chain => (
-                      <SelectItem
-                        key={chain.id}
-                        value={chain.id}
-                        disabled={selectedHomeChainId !== '__custom' && chain.id === selectedHomeChainId}
-                      >
-                        <div className="flex items-center gap-3">
-                          {chain.logoUrl && (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={chain.logoUrl}
-                              alt={chain.name}
-                              className="h-5 w-5 rounded-full object-contain"
-                            />
-                          )}
-                          <span>{chain.name}</span>
-                          {chain.isTestnet && (
-                            <span className="ml-auto text-xs uppercase tracking-wide text-red-500">
-                              Testnet
-                            </span>
-                          )}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {chainsError && (
-                  <p className="mt-2 text-sm text-red-500">
-                    {chainsError}
-                  </p>
+                <h3 className="text-lg font-bold tracking-wide mb-4">
+                  TELEPORTER REGISTRY
+                </h3>
+                {!homeChainHasICMSetup && (
+                  <div className="flex items-center gap-3 mb-4">
+                    <Switch
+                      id="home_teleporter_registry_deploy"
+                      checked={homeChain.teleporterRegistryDeploy}
+                      onCheckedChange={(checked) => handleHomeChainInputChange('teleporterRegistryDeploy', checked)}
+                      disabled
+                      className="data-[state=checked]:bg-red-500 data-[state=unchecked]:bg-gray-700/60 disabled:opacity-60"
+                    />
+                    <label htmlFor="home_teleporter_registry_deploy" className="text-xs font-medium tracking-widest">
+                      DEPLOY TELEPORTER REGISTRY
+                    </label>
+                  </div>
+                )}
+                {homeChainHasICMSetup && (
+                  <div>
+                    <label className={cn("block text-xs font-medium tracking-widest mb-2", darkMode ? 'text-gray-300' : 'text-gray-700')}>
+                      CONTRACT ADDRESS *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={homeChain.teleporterRegistryAddress}
+                      onChange={(e) => handleHomeChainInputChange('teleporterRegistryAddress', e.target.value)}
+                      disabled={!!homeChainDisabledFields.teleporterRegistryAddress}
+                      readOnly={!!homeChainDisabledFields.teleporterRegistryAddress}
+                      className={cn("w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', homeChainDisabledFields.teleporterRegistryAddress ? 'opacity-70 cursor-not-allowed' : '')}
+                      placeholder="0xF86Cb19Ad8405AEFa7d09C778215D2Cb6eBfB228"
+                    />
+                  </div>
                 )}
               </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="md:col-span-2">
-                <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                  RPC URL *
-                </label>
-                <input
-                  type="url"
-                  required
-                  value={remoteChain.rpcUrl}
-                  onChange={(e) => handleRemoteChainInputChange('rpcUrl', e.target.value)}
-                  disabled={!!remoteChainDisabledFields.rpcUrl}
-                  readOnly={!!remoteChainDisabledFields.rpcUrl}
-                  className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all ${remoteChainDisabledFields.rpcUrl ? 'opacity-70 cursor-not-allowed' : ''}`}
-                  placeholder="https://subnets.avax.network/dispatch/testnet/rpc"
-                />
+            </section>
+  
+            {/* Remote Chain Configuration Block */}
+            <section className={cn("border p-6", darkMode ? 'border-gray-700' : 'border-black')}>
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
+                <h2 className="text-2xl font-bold tracking-wide">
+                  REMOTE CHAIN CONFIGURATION
+                </h2>
+                <div className="w-full md:w-auto">
+                  <Select
+                    value={selectedRemoteChainId}
+                    onValueChange={handleRemoteChainSelect}
+                    disabled={chainsLoading}
+                  >
+                    <SelectTrigger
+                      className={cn("w-full md:w-[280px] border rounded-none tracking-wide", darkMode ? 'bg-[#0e0e0e]/60 border-gray-700 text-white' : 'bg-white border-black text-gray-900')}
+                    >
+                      <SelectValue placeholder={chainsLoading ? 'LOADING CHAINS...' : 'SELECT A CHAIN'} />
+                    </SelectTrigger>
+                    <SelectContent className={cn("rounded-none border", darkMode ? 'bg-[#0e0e0e] text-white border-gray-700' : 'bg-white text-gray-900 border-black')}>
+                      <SelectItem value="__custom">
+                        <span className="tracking-wide">CUSTOM CONFIGURATION</span>
+                      </SelectItem>
+                      {availableChains.map(chain => (
+                        <SelectItem
+                          key={chain.id}
+                          value={chain.id}
+                          disabled={selectedHomeChainId !== '__custom' && chain.id === selectedHomeChainId}
+                        >
+                          <div className="flex items-center gap-3">
+                            {chain.logoUrl && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={chain.logoUrl}
+                                alt={chain.name}
+                                className="h-5 w-5 rounded-full object-contain"
+                              />
+                            )}
+                            <span className="tracking-wide">{chain.name.toUpperCase()}</span>
+                            {chain.isTestnet && (
+                              <span className="ml-auto text-xs uppercase tracking-wide text-red-500">
+                                TESTNET
+                              </span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {chainsError && (
+                    <p className="mt-2 text-xs tracking-widest text-red-500">
+                      {chainsError}
+                    </p>
+                  )}
+                </div>
               </div>
-
-              <div>
-                <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                  Blockchain ID *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={remoteChain.blockchainId}
-                  onChange={(e) => handleRemoteChainInputChange('blockchainId', e.target.value)}
-                  disabled={!!remoteChainDisabledFields.blockchainId}
-                  readOnly={!!remoteChainDisabledFields.blockchainId}
-                  className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all ${remoteChainDisabledFields.blockchainId ? 'opacity-70 cursor-not-allowed' : ''}`}
-                  placeholder="0x9f49313c3f022e9fe5b6e7c1d98f0f53d86e53456c5e075e1881cac1c15968e4"
-                />
-              </div>
-            </div>
-
-            {/* Token Configuration */}
-            <div className={`mt-6 pt-6 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-              <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'} mb-4`}>
-                Token Configuration
-              </h3>
+              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="md:col-span-2">
+                  <label className={cn("block text-xs font-medium tracking-widest mb-2", darkMode ? 'text-gray-300' : 'text-gray-700')}>
+                    RPC URL *
+                  </label>
+                  <input
+                    type="url"
+                    required
+                    value={remoteChain.rpcUrl}
+                    onChange={(e) => handleRemoteChainInputChange('rpcUrl', e.target.value)}
+                    disabled={!!remoteChainDisabledFields.rpcUrl}
+                    readOnly={!!remoteChainDisabledFields.rpcUrl}
+                    className={cn("w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', remoteChainDisabledFields.rpcUrl ? 'opacity-70 cursor-not-allowed' : '')}
+                    placeholder="https://subnets.avax.network/dispatch/testnet/rpc"
+                  />
+                </div>
+  
                 <div>
-                  <label className={`flex items-center gap-2 text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                    Token Name *
-                    <div className="relative group">
-                      <Info className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
-                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none">
-                        <div className={`relative ${darkMode ? 'bg-gray-800 text-gray-200 border-gray-700' : 'bg-gray-900 text-white border-gray-600'} text-xs rounded-lg px-3 py-2 shadow-lg border whitespace-nowrap`}>
-                          What should be your wrapped token name on your chain. Example: Wrapped Avax
-                          <div className={`absolute top-full left-1/2 -translate-x-1/2 -mt-px w-0 h-0 ${darkMode ? 'border-t-gray-800' : 'border-t-gray-900'} border-l-transparent border-r-transparent border-b-transparent border-4`}></div>
-                        </div>
-                      </div>
-                    </div>
+                  <label className={cn("block text-xs font-medium tracking-widest mb-2", darkMode ? 'text-gray-300' : 'text-gray-700')}>
+                    BLOCKCHAIN ID *
                   </label>
                   <input
                     type="text"
                     required
-                    value={remoteChain.tokenName}
-                    onChange={(e) => handleRemoteChainInputChange('tokenName', e.target.value)}
-                    disabled={!!remoteChainDisabledFields.tokenName}
-                    readOnly={!!remoteChainDisabledFields.tokenName}
-                    className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all ${remoteChainDisabledFields.tokenName ? 'opacity-70 cursor-not-allowed' : ''}`}
-                    placeholder="Wrapped Avax"
+                    value={remoteChain.blockchainId}
+                    onChange={(e) => handleRemoteChainInputChange('blockchainId', e.target.value)}
+                    disabled={!!remoteChainDisabledFields.blockchainId}
+                    readOnly={!!remoteChainDisabledFields.blockchainId}
+                    className={cn("w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', remoteChainDisabledFields.blockchainId ? 'opacity-70 cursor-not-allowed' : '')}
+                    placeholder="0x9f49313c3f022e9fe5b6e7c1d98f0f53d86e53456c5e075e1881cac1c15968e4"
                   />
                 </div>
-
-                <div>
-                  <label className={`flex items-center gap-2 text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                    Token Symbol * 
-                    <div className="relative group">
-                      <Info className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
-                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none">
-                        <div className={`relative ${darkMode ? 'bg-gray-800 text-gray-200 border-gray-700' : 'bg-gray-900 text-white border-gray-600'} text-xs rounded-lg px-3 py-2 shadow-lg border whitespace-nowrap`}>
-                          What should be your wrapped token symbol on your chain. Example: WAVAX
-                          <div className={`absolute top-full left-1/2 -translate-x-1/2 -mt-px w-0 h-0 ${darkMode ? 'border-t-gray-800' : 'border-t-gray-900'} border-l-transparent border-r-transparent border-b-transparent border-4`}></div>
+              </div>
+  
+              {/* Token Configuration */}
+              <div className={cn("mt-6 pt-6 border-t", darkMode ? 'border-gray-700' : 'border-black')}>
+                <h3 className="text-lg font-bold tracking-wide mb-4">
+                  TOKEN CONFIGURATION
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className={cn("flex items-center gap-2 text-xs font-medium tracking-widest mb-2", darkMode ? 'text-gray-300' : 'text-gray-700')}>
+                      TOKEN NAME *
+                      <div className="relative group">
+                        <Info className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
+                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none">
+                          <div className={cn("relative text-xs rounded-none px-3 py-2 shadow-lg border whitespace-nowrap", darkMode ? 'bg-gray-800 text-gray-200 border-gray-700' : 'bg-[#0e0e0e] text-white border-gray-600')}>
+                            WHAT SHOULD BE YOUR WRAPPED TOKEN NAME ON YOUR CHAIN. EXAMPLE: WRAPPED AVAX
+                            <div className={cn("absolute top-full left-1/2 -translate-x-1/2 -mt-px w-0 h-0 border-l-transparent border-r-transparent border-b-transparent border-4", darkMode ? 'border-t-gray-800' : 'border-t-gray-900')}></div>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={remoteChain.tokenSymbol}
-                    onChange={(e) => handleRemoteChainInputChange('tokenSymbol', e.target.value)}
-                    disabled={!!remoteChainDisabledFields.tokenSymbol}
-                    readOnly={!!remoteChainDisabledFields.tokenSymbol}
-                    className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all ${remoteChainDisabledFields.tokenSymbol ? 'opacity-70 cursor-not-allowed' : ''}`}
-                    placeholder="WAVAX"
-                  />
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={remoteChain.tokenName}
+                      onChange={(e) => handleRemoteChainInputChange('tokenName', e.target.value)}
+                      disabled={!!remoteChainDisabledFields.tokenName}
+                      readOnly={!!remoteChainDisabledFields.tokenName}
+                      className={cn("w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', remoteChainDisabledFields.tokenName ? 'opacity-70 cursor-not-allowed' : '')}
+                      placeholder="Wrapped Avax"
+                    />
+                  </div>
+  
+                  <div>
+                    <label className={cn("flex items-center gap-2 text-xs font-medium tracking-widest mb-2", darkMode ? 'text-gray-300' : 'text-gray-700')}>
+                      TOKEN SYMBOL * 
+                      <div className="relative group">
+                        <Info className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
+                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none">
+                          <div className={cn("relative text-xs rounded-none px-3 py-2 shadow-lg border whitespace-nowrap", darkMode ? 'bg-gray-800 text-gray-200 border-gray-700' : 'bg-[#0e0e0e] text-white border-gray-600')}>
+                            WHAT SHOULD BE YOUR WRAPPED TOKEN SYMBOL ON YOUR CHAIN. EXAMPLE: WAVAX
+                            <div className={cn("absolute top-full left-1/2 -translate-x-1/2 -mt-px w-0 h-0 border-l-transparent border-r-transparent border-b-transparent border-4", darkMode ? 'border-t-gray-800' : 'border-t-gray-900')}></div>
+                          </div>
+                        </div>
+                      </div>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={remoteChain.tokenSymbol}
+                      onChange={(e) => handleRemoteChainInputChange('tokenSymbol', e.target.value)}
+                      disabled={!!remoteChainDisabledFields.tokenSymbol}
+                      readOnly={!!remoteChainDisabledFields.tokenSymbol}
+                      className={cn("w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', remoteChainDisabledFields.tokenSymbol ? 'opacity-70 cursor-not-allowed' : '')}
+                      placeholder="WAVAX"
+                    />
+                  </div>
+  
+                  <div>
+                    <label className={cn("block text-xs font-medium tracking-widest mb-2", darkMode ? 'text-gray-300' : 'text-gray-700')}>
+                      TOKEN DECIMALS *
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      max="18"
+                      value={remoteChain.tokenDecimals}
+                      onChange={(e) => handleRemoteChainInputChange('tokenDecimals', e.target.value)}
+                      className={cn("w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black')}
+                      placeholder="18"
+                    />
+                  </div>
                 </div>
-
-                <div>
-                  <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                    Token Decimals *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    min="0"
-                    max="18"
-                    value={remoteChain.tokenDecimals}
-                    onChange={(e) => handleRemoteChainInputChange('tokenDecimals', e.target.value)}
-                    className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all`}
-                    placeholder="18"
-                  />
-                </div>
-
               </div>
-            </div>
-
-            {/* Teleporter Registry Configuration */}
-            <div className={`mt-6 pt-6 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-              <div className="flex items-center gap-3 mb-4">
-                <Switch
-                  id="remote_icm_setup"
-                  checked={remoteChainHasICMSetup}
-                  onCheckedChange={handleRemoteChainICMSetupChange}
-                  disabled={remoteChainICMDisabled}
-                  className="data-[state=checked]:bg-red-500 data-[state=unchecked]:bg-gray-700/80 disabled:opacity-60 disabled:cursor-not-allowed"
-                />
-                <label htmlFor="remote_icm_setup" className={`text-sm font-medium cursor-pointer ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Does your chain have a ICM setup?
-                </label>
-              </div>
-              <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'} mb-4`}>
-                Teleporter Registry
-              </h3>
-              {!remoteChainHasICMSetup && (
+  
+              {/* Teleporter Registry Configuration */}
+              <div className={cn("mt-6 pt-6 border-t", darkMode ? 'border-gray-700' : 'border-black')}>
                 <div className="flex items-center gap-3 mb-4">
                   <Switch
-                    id="remote_teleporter_registry_deploy"
-                    checked={remoteChain.teleporterRegistryDeploy}
-                    onCheckedChange={(checked) => handleRemoteChainInputChange('teleporterRegistryDeploy', checked)}
-                    disabled
-                    className="data-[state=checked]:bg-red-500 data-[state=unchecked]:bg-gray-700/60 disabled:opacity-60"
+                    id="remote_icm_setup"
+                    checked={remoteChainHasICMSetup}
+                    onCheckedChange={handleRemoteChainICMSetupChange}
+                    disabled={remoteChainICMDisabled}
+                    className="data-[state=checked]:bg-red-500 data-[state=unchecked]:bg-gray-700/80 disabled:opacity-60 disabled:cursor-not-allowed"
                   />
-                  <label htmlFor="remote_teleporter_registry_deploy" className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                    Deploy Teleporter Registry
+                  <label htmlFor="remote_icm_setup" className={cn("text-xs font-medium cursor-pointer tracking-widest", darkMode ? 'text-gray-300' : 'text-gray-700')}>
+                    DOES YOUR CHAIN HAVE AN ICM SETUP?
                   </label>
                 </div>
-              )}
-              {remoteChainHasICMSetup && (
-                <div>
-                  <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                    Contract Address *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={remoteChain.teleporterRegistryAddress}
-                    onChange={(e) => handleRemoteChainInputChange('teleporterRegistryAddress', e.target.value)}
-                    disabled={!!remoteChainDisabledFields.teleporterRegistryAddress}
-                    readOnly={!!remoteChainDisabledFields.teleporterRegistryAddress}
-                    className={`w-full px-4 py-3 ${darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-gray-300'} border rounded-2xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all ${remoteChainDisabledFields.teleporterRegistryAddress ? 'opacity-70 cursor-not-allowed' : ''}`}
-                    placeholder="0xF86Cb19Ad8405AEFa7d09C778215D2Cb6eBfB228"
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Submit Button */}
-          <div className="flex justify-end">
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className={`flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 disabled:from-gray-500 disabled:to-gray-600 text-white rounded-2xl font-semibold text-lg transition-all shadow-lg ${
-                isSubmitting ? 'cursor-not-allowed' : 'cursor-pointer'
-              }`}
-            >
-              {isSubmitting ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Deploying...
-                </>
-              ) : (
-                <>
-                  {/* <Save className="w-5 h-5" /> */}
-                  Deploy Bridge
-                </>
-              )}
-            </button>
-          </div>
-        </form>
+                <h3 className="text-lg font-bold tracking-wide mb-4">
+                  TELEPORTER REGISTRY
+                </h3>
+                {!remoteChainHasICMSetup && (
+                  <div className="flex items-center gap-3 mb-4">
+                    <Switch
+                      id="remote_teleporter_registry_deploy"
+                      checked={remoteChain.teleporterRegistryDeploy}
+                      onCheckedChange={(checked) => handleRemoteChainInputChange('teleporterRegistryDeploy', checked)}
+                      disabled
+                      className="data-[state=checked]:bg-red-500 data-[state=unchecked]:bg-gray-700/60 disabled:opacity-60"
+                    />
+                    <label htmlFor="remote_teleporter_registry_deploy" className="text-xs font-medium tracking-widest">
+                      DEPLOY TELEPORTER REGISTRY
+                    </label>
+                  </div>
+                )}
+                {remoteChainHasICMSetup && (
+                  <div>
+                    <label className={cn("block text-xs font-medium tracking-widest mb-2", darkMode ? 'text-gray-300' : 'text-gray-700')}>
+                      CONTRACT ADDRESS *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={remoteChain.teleporterRegistryAddress}
+                      onChange={(e) => handleRemoteChainInputChange('teleporterRegistryAddress', e.target.value)}
+                      disabled={!!remoteChainDisabledFields.teleporterRegistryAddress}
+                      readOnly={!!remoteChainDisabledFields.teleporterRegistryAddress}
+                      className={cn("w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', remoteChainDisabledFields.teleporterRegistryAddress ? 'opacity-70 cursor-not-allowed' : '')}
+                      placeholder="0xF86Cb19Ad8405AEFa7d09C778215D2Cb6eBfB228"
+                    />
+                  </div>
+                )}
+              </div>
+            </section>
+  
+            {/* Submit Button Block */}
+            <section className={cn("border p-6", darkMode ? 'border-gray-700' : 'border-black')}>
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className={cn("flex items-center gap-3 px-8 py-4 border rounded-none font-semibold tracking-widest transition-all", isSubmitting ? 'cursor-not-allowed opacity-60' : 'cursor-pointer', darkMode ? 'bg-red-900/20 hover:bg-red-900/30 text-red-400 border-red-700/30' : 'bg-red-100 hover:bg-red-200 text-red-600 border-red-300')}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      DEPLOYING...
+                    </>
+                  ) : (
+                    'DEPLOY BRIDGE'
+                  )}
+                </button>
+              </div>
+            </section>
+          </form>
         ) : (
-          <div className={`flex flex-col items-center justify-center gap-4 py-24 rounded-3xl border ${darkMode ? 'border-gray-800/50 bg-gray-900/30 text-gray-400' : 'border-gray-200 bg-gray-50 text-gray-600'} transition-colors`}>
+          <section className={cn("border p-12 flex flex-col items-center justify-center gap-4", darkMode ? 'border-gray-700 bg-[#0e0e0e]/30' : 'border-black bg-gray-50')}>
             <div id="computer" className="w-full max-w-[340px] mx-auto">
               <span className="computer-graphic" />
             </div>
-            <p className="text-4xl font-semibold">Coming soon...</p>
-            <p className="text-sm">This bridge configuration is under development.</p>
-          </div>
+            <p className="text-4xl font-bold tracking-wide">COMING SOON...</p>
+            <p className={cn("text-xs tracking-widest", darkMode ? 'text-gray-400' : 'text-gray-600')}>
+              THIS BRIDGE CONFIGURATION IS UNDER DEVELOPMENT
+            </p>
+          </section>
         )}
-      </main>
+  
+      </div>
+  
 
       {/* Toast Notification */}
       {showToast && (
