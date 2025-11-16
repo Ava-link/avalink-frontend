@@ -78,6 +78,7 @@ export default function Landing() {
         >
           <h2 className="font-bold mb-3">FEATURES<br/></h2>
           -- MULTI-CHAIN SUPPORT<br/>
+          -- LOW GAS FEES<br/>
           -- HIGH THROUGHPUT<br/>
           -- INSTANT BRIDGING<br/>
           -- INSTANT DEPLOYMENT<br/>
@@ -94,7 +95,7 @@ export default function Landing() {
             darkMode ? "border-gray-700" : "border-black"
           )}
         >
-          <h2 className="font-bold mb-3">ECOSYSTEMS</h2>
+          <h2 className="font-bold mb-3">EXOSYSTEMS</h2>
           -- Ecosystems is a next-generation interoperability protocol layer built for the Avalanche, enabling seamless and scalable token movement between Avalanche L1s<br/>
           <div className="text-red-500">
             ●●●●●●●●<br/><br/>

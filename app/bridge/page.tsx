@@ -1360,7 +1360,7 @@ export default function AvalinkMain() {
 
       await loadTokenInfo();
       bridgeCompleted = true;
-      scheduleLoaderReset(120000);
+      scheduleLoaderReset(30000);
       
       // Reset form
       setFromAmount('');
@@ -1869,23 +1869,6 @@ export default function AvalinkMain() {
                      : "bg-[repeating-linear-gradient(135deg,#e0e0e0_0px,#e0e0e0_12px,#f2f2f2_12px,#f2f2f2_24px)]"
                  )}
                />
-               {fromChain?.explorerUrl && lastSendTxId && (
-                 <div className="relative z-10 flex h-full w-full items-center justify-center">
-                   <a
-                     href={`${(fromChain.explorerUrl || '').replace(/\/+$/, '')}/tx/${lastSendTxId}`}
-                     target="_blank"
-                     rel="noopener noreferrer"
-                     className={cn(
-                       "inline-flex items-center gap-2 px-4 py-2 text-xs tracking-widest border rounded-none backdrop-blur-sm",
-                       darkMode
-                         ? "border-gray-700 text-black bg-[#64FFC2] hover:bg-[#64FFD6]"
-                         : "border-black text-black bg-[#64FFC2] hover:bg-[#64FFD6]"
-                     )}
-                   >
-                     VIEW ON EXPLORER
-                   </a>
-                 </div>
-               )}
              </motion.section>
            )}
 
@@ -1939,6 +1922,23 @@ export default function AvalinkMain() {
                      : "bg-[repeating-linear-gradient(135deg,#e0e0e0_0px,#e0e0e0_12px,#f2f2f2_12px,#f2f2f2_24px)]"
                  )}
                />
+               {fromChain?.explorerUrl && lastSendTxId && (
+                 <div className="relative z-10 flex h-full w-full items-center justify-center">
+                   <a
+                     href={`${(fromChain.explorerUrl || '').replace(/\/+$/, '')}/tx/${lastSendTxId}`}
+                     target="_blank"
+                     rel="noopener noreferrer"
+                     className={cn(
+                       "inline-flex items-center gap-2 px-4 py-2 text-xs tracking-widest border rounded-none backdrop-blur-sm",
+                       darkMode
+                         ? "border-gray-700 text-black bg-[#64FFC2] hover:bg-[#64FFD6]"
+                         : "border-black text-black bg-[#64FFC2] hover:bg-[#64FFD6]"
+                     )}
+                   >
+                     VIEW ON EXPLORER
+                   </a>
+                 </div>
+               )}
              </motion.section>
           )}
         </AnimatePresence>

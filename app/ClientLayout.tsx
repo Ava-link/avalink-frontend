@@ -20,9 +20,7 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
         connectedWallet={!!connectedWallet}
         walletAddress={walletAddress}
         disconnectWallet={disconnect}
-        onConnect={async () => {
-          await connect().catch(() => {});
-        }}
+        onConnect={connect}
         onNavigateHome={() => router.push('/')}
         onNavigateBridge={() => router.push('/bridge')}
         onNavigateAddChain={() => router.push('/addchain')}
