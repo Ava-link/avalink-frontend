@@ -1611,7 +1611,7 @@ export default function AvalinkMain() {
                   <span className={cn("text-xs tracking-widest", darkMode ? 'text-gray-400' : 'text-gray-600')}>SOURCE CHAIN</span>
                   <button
                     onClick={() => setShowFromModal(true)}
-                    className={cn("flex items-center gap-2 px-3 py-2 border rounded-none transition-colors w-full sm:w-auto sm:flex-shrink-0 sm:min-w-[120px]", darkMode ? 'border-gray-700 bg-[#0e0e0e]/50 hover:bg-[#0e0e0e]' : 'border-black bg-gray-200 hover:bg-gray-300')}
+                    className={cn("cursor-target flex items-center gap-2 px-3 py-2 border rounded-none transition-colors w-full sm:w-auto sm:flex-shrink-0 sm:min-w-[120px]", darkMode ? 'border-gray-700 bg-[#0e0e0e]/50 hover:bg-[#0e0e0e]' : 'border-black bg-gray-200 hover:bg-gray-300')}
                   >
                     {fromChain ? (
                       <>
@@ -1660,7 +1660,7 @@ export default function AvalinkMain() {
                       }
                     }}
                     placeholder="0"
-                    className="appearance-none bg-transparent text-4xl font-medium outline-none w-full"
+                    className="cursor-target appearance-none bg-transparent text-4xl font-medium outline-none w-full"
                   />
                 </div>
               </div>
@@ -1671,7 +1671,7 @@ export default function AvalinkMain() {
               <button
                 onClick={() => setShowTokenModal(true)}
                 disabled={availableTokens.length === 0}
-                className={cn("w-full border rounded-none p-4 transition-colors flex items-center justify-between", darkMode ? 'border-gray-700 bg-[#0e0e0e]/50 hover:bg-[#0e0e0e]/70' : 'border-black bg-gray-100/50 hover:bg-gray-100/70', availableTokens.length === 0 ? 'opacity-50 cursor-not-allowed' : '')}
+                className={cn("cursor-target w-full border rounded-none p-4 transition-colors flex items-center justify-between", darkMode ? 'border-gray-700 bg-[#0e0e0e]/50 hover:bg-[#0e0e0e]/70' : 'border-black bg-gray-100/50 hover:bg-gray-100/70', availableTokens.length === 0 ? 'opacity-50 cursor-not-allowed' : '')}
               >
                 <div className="flex items-center gap-3">
                   {fromToken ? (
@@ -1704,7 +1704,7 @@ export default function AvalinkMain() {
                   <button
                     onClick={() => setShowToModal(true)}
                     disabled={availableToChains.length === 0}
-                    className={cn("flex items-center gap-2 px-3 py-2 border rounded-none transition-colors w-full sm:w-auto sm:flex-shrink-0 sm:min-w-[120px]", darkMode ? 'border-gray-700 bg-[#0e0e0e]/50 hover:bg-[#0e0e0e]' : 'border-black bg-gray-200 hover:bg-gray-300', availableToChains.length === 0 ? 'opacity-50 cursor-not-allowed' : '')}
+                    className={cn("cursor-target flex items-center gap-2 px-3 py-2 border rounded-none transition-colors w-full sm:w-auto sm:flex-shrink-0 sm:min-w-[120px]", darkMode ? 'border-gray-700 bg-[#0e0e0e]/50 hover:bg-[#0e0e0e]' : 'border-black bg-gray-200 hover:bg-gray-300', availableToChains.length === 0 ? 'opacity-50 cursor-not-allowed' : '')}
                   >
                     {toChain ? (
                       <>
@@ -1738,7 +1738,7 @@ export default function AvalinkMain() {
             <button 
               onClick={handleSend}
               disabled={!fromToken || !fromChain || !toChain || isProcessingSend}
-              className={cn("w-full py-4 border rounded-none font-semibold text-lg tracking-widest transition-all", darkMode ? 'bg-red-900/20 hover:bg-red-900/30 text-red-400 border-red-700/30' : 'bg-red-100 hover:bg-red-200 text-red-600 border-red-300', !fromToken || !fromChain || !toChain || isProcessingSend ? 'opacity-50 cursor-not-allowed' : '')}
+              className={cn("cursor-target w-full py-4 border rounded-none font-semibold text-lg tracking-widest transition-all", darkMode ? 'bg-red-900/20 hover:bg-red-900/30 text-red-400 border-red-700/30' : 'bg-red-100 hover:bg-red-200 text-red-600 border-red-300', !fromToken || !fromChain || !toChain || isProcessingSend ? 'opacity-50 cursor-not-allowed' : '')}
             >
               {isProcessingSend
                 ? 'PROCESSING...'
@@ -1800,7 +1800,7 @@ export default function AvalinkMain() {
                   target="_blank"
                   rel="noopener noreferrer"
                   className={cn(
-                    "inline-flex items-center gap-2 px-4 py-2 text-xs tracking-widest border rounded-none",
+                    "cursor-target inline-flex items-center gap-2 px-4 py-2 text-xs tracking-widest border rounded-none",
                     darkMode
                       ? "border-gray-700 text-black bg-[#64FFC2] hover:bg-[#64FFD6]"
                       : "border-black text-black bg-[#64FFC2] hover:bg-[#64FFD6]"
@@ -1929,7 +1929,7 @@ export default function AvalinkMain() {
                      target="_blank"
                      rel="noopener noreferrer"
                      className={cn(
-                       "inline-flex items-center gap-2 px-4 py-2 text-xs tracking-widest border rounded-none backdrop-blur-sm",
+                       "cursor-target inline-flex items-center gap-2 px-4 py-2 text-xs tracking-widest border rounded-none backdrop-blur-sm",
                        darkMode
                          ? "border-gray-700 text-black bg-[#64FFC2] hover:bg-[#64FFD6]"
                          : "border-black text-black bg-[#64FFC2] hover:bg-[#64FFD6]"

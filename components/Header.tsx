@@ -63,7 +63,7 @@ export function Header({
 
         <button
           onClick={toggleDarkMode}
-          className={`p-2 transition-colors border 
+          className={`cursor-target p-2 transition-colors border 
             ${darkMode ? 'border-gray-600 bg-[#202020] hover:bg-gray-700 text-white' : 'border-black bg-white hover:bg-gray-200 text-black'}`}
         >
           {darkMode ? <Sun className="w-5 h-5 text-yellow-300" /> : <Moon className="w-5 h-5 text-black" />}
@@ -74,7 +74,7 @@ export function Header({
       <div className="hidden md:flex items-center gap-3">
         <button
           onClick={handleHome}
-          className={`flex h-10 items-center gap-2 px-4 py-2 border transition-colors 
+          className={`cursor-target flex h-10 items-center gap-2 px-4 py-2 border transition-colors 
             ${darkMode ? 'border-gray-700 bg-[#202020] hover:bg-gray-700 text-white' : 'border-black bg-white hover:bg-gray-200 text-black'}`}
         >
           <Home className="w-4 h-4" /> Home
@@ -82,7 +82,7 @@ export function Header({
 
         <button
           onClick={handleBridge}
-          className={`flex h-10 items-center gap-2 px-4 py-2 border transition-colors 
+          className={`cursor-target flex h-10 items-center gap-2 px-4 py-2 border transition-colors 
             ${darkMode ? 'border-gray-700 bg-[#202020] hover:bg-gray-700 text-white' : 'border-black bg-white hover:bg-gray-200 text-black'}`}
         >
           <LinkIcon className="w-4 h-4" /> Bridge
@@ -90,7 +90,7 @@ export function Header({
 
         <button
           onClick={handleAddChain}
-          className={`flex h-10 items-center gap-2 px-4 py-2 border transition-colors 
+          className={`cursor-target flex h-10 items-center gap-2 px-4 py-2 border transition-colors 
             ${darkMode ? 'border-gray-700 bg-[#202020] hover:bg-gray-700 text-white' : 'border-black bg-white hover:bg-gray-200 text-black'}`}
         >
           <Plus className="w-4 h-4" /> Add Chain
@@ -98,20 +98,20 @@ export function Header({
 
         {connectedWallet ? (
           <div className="flex items-center gap-2">
-            <div className={`px-3 py-2 text-sm font-mono border 
+            <div className={`cursor-target px-3 py-2 text-sm font-mono border 
               ${darkMode ? 'border-gray-700 bg-[#202020] text-white' : 'border-black bg-white text-black'}`}
             >
               {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
             </div>
             <button
               onClick={handleDisconnect}
-              className={`flex h-10 items-center gap-2 px-4 py-2 border transition-colors ${darkMode ? 'border-gray-700 bg-[#202020] hover:bg-[#FF5A60] text-white' : 'border-black bg-white hover:bg-[#FF5A60] text-black'}`}
+              className={`cursor-target flex h-10 items-center gap-2 px-4 py-2 border transition-colors ${darkMode ? 'border-gray-700 bg-[#202020] hover:bg-[#FF5A60] text-white' : 'border-black bg-white hover:bg-[#FF5A60] text-black'}`}
             >Disconnect</button>
           </div>
         ) : (
           <button
             onClick={handleConnect}
-            className={`flex h-10 items-center gap-2 px-4 py-2 border transition-colors ${darkMode ? 'border-gray-700 bg-[#202020] hover:bg-[#64FFC2] text-white' : 'border-black bg-white hover:bg-[#64FFC2] text-black'}`}
+            className={`cursor-target flex h-10 items-center gap-2 px-4 py-2 border transition-colors ${darkMode ? 'border-gray-700 bg-[#202020] hover:bg-[#64FFC2] text-white' : 'border-black bg-white hover:bg-[#64FFC2] text-black'}`}
           >Connect</button>
         )}
       </div>
@@ -121,7 +121,7 @@ export function Header({
         <Sheet open={isOpen} onOpenChange={setIsOpen}>
           <SheetTrigger asChild>
             <button
-              className={`p-2 border transition-colors 
+              className={`cursor-target p-2 border transition-colors 
                 ${darkMode ? 'border-gray-700 bg-[#202020] text-white' : 'border-black bg-white text-black'}`}
             >
               <Menu className="w-6 h-6" />
@@ -130,13 +130,13 @@ export function Header({
 
           <SheetContent
             side="right"
-            className={`w-[280px] sm:w-[320px] border-l 
+            className={`cursor-target w-[280px] sm:w-[320px] border-l 
               ${darkMode ? 'bg-[#0E0E0E] border-gray-800 text-white' : 'bg-white border-black text-black'}`}
           >
             <div className="mx-2 flex flex-col gap-4 mt-16">
               <button
                 onClick={handleHome}
-                className={`flex h-10 w-full items-center justify-center px-4 border transition-colors 
+                className={`cursor-target flex h-10 w-full items-center justify-center px-4 border transition-colors 
                   ${darkMode ? 'border-gray-700 bg-[#202020] text-white hover:bg-gray-700' : 'border-black bg-white text-black hover:bg-gray-200'}`}
               >
                 Home
@@ -144,7 +144,7 @@ export function Header({
 
               <button
                 onClick={handleBridge}
-                className={`flex h-10 w-full items-center justify-center px-4 border transition-colors 
+                className={`cursor-target flex h-10 w-full items-center justify-center px-4 border transition-colors 
                   ${darkMode ? 'border-gray-700 bg-[#202020] text-white hover:bg-gray-700' : 'border-black bg-white text-black hover:bg-gray-200'}`}
               >
                 <LinkIcon className="w-4 h-4 mr-1" /> Bridge
@@ -161,20 +161,20 @@ export function Header({
               <div className="pt-4 border-t border-gray-400">
                 {connectedWallet ? (
                   <div className="flex flex-col gap-3">
-                    <div className={`flex h-10 w-full items-center justify-center px-4 border text-sm font-mono 
+                    <div className={`cursor-target flex h-10 w-full items-center justify-center px-4 border text-sm font-mono 
                       ${darkMode ? 'border-gray-700 bg-[#202020] text-white' : 'border-black bg-white text-black'}`}
                     >
                       {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
                     </div>
                     <button
                       onClick={handleDisconnect}
-                      className={`flex h-10 w-full items-center justify-center gap-2 px-4 border transition-colors ${darkMode ? 'border-gray-700 bg-[#202020] hover:bg-[#FF5A60] text-white' : 'border-black bg-white hover:bg-[#FF5A60] text-black'}`}
+                      className={`cursor-target flex h-10 w-full items-center justify-center gap-2 px-4 border transition-colors ${darkMode ? 'border-gray-700 bg-[#202020] hover:bg-[#FF5A60] text-white' : 'border-black bg-white hover:bg-[#FF5A60] text-black'}`}
                       >Disconnect Wallet</button>
                   </div>
                 ) : (
                   <button
                     onClick={handleConnect}
-                    className={`flex h-10 w-full items-center justify-center gap-2 px-4 border transition-colors ${darkMode ? 'border-gray-700 bg-[#202020] hover:bg-[#64FFC2] text-white' : 'border-black bg-white hover:bg-[#64FFC2] text-black'}`}
+                    className={`cursor-target flex h-10 w-full items-center justify-center gap-2 px-4 border transition-colors ${darkMode ? 'border-gray-700 bg-[#202020] hover:bg-[#64FFC2] text-white' : 'border-black bg-white hover:bg-[#64FFC2] text-black'}`}
                   >Connect Wallet</button>
                 )}
               </div>

@@ -4,6 +4,7 @@ import "./globals.css";
 import "@/styles/css/computer.css";
 import WalletProvider from './providers/WalletProvider';
 import ClientLayout from './ClientLayout';
+import TargetCursor from '@/components/TargetCursor';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,6 +34,11 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+      <TargetCursor 
+        spinDuration={2.75}
+        hideDefaultCursor={true}
+        parallaxOn={false}
+      />
         <WalletProvider>
           <ClientLayout>
             {children}

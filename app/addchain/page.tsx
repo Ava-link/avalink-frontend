@@ -494,9 +494,9 @@ export default function AddChainPage() {
         </section>
   
         {bridgeType === 'erc20-erc20' ? (
-          <form onSubmit={handleSubmit} className="contents">
+          <form onSubmit={handleSubmit} className="contents grid grid-cols-1 md:grid-cols-2 gap-2">
             {/* Home Chain Configuration Block */}
-            <section className={cn("border p-6", darkMode ? 'border-gray-700' : 'border-black')}>
+            <section className={cn("col-span-1 border p-6", darkMode ? 'border-gray-700' : 'border-black')}>
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
                 <h2 className="text-2xl font-bold tracking-wide">
                   HOME CHAIN CONFIGURATION
@@ -508,11 +508,11 @@ export default function AddChainPage() {
                     disabled={chainsLoading}
                   >
                     <SelectTrigger
-                      className={cn("w-full md:w-[280px] border rounded-none tracking-wide", darkMode ? 'bg-[#0e0e0e]/60 border-gray-700 text-white' : 'bg-white border-black text-gray-900')}
+                      className={cn("cursor-target w-full md:w-[280px] border rounded-none tracking-wide", darkMode ? 'bg-[#0e0e0e]/60 border-gray-700 text-white' : 'bg-white border-black text-gray-900')}
                     >
                       <SelectValue placeholder={chainsLoading ? 'LOADING CHAINS...' : 'SELECT A CHAIN'} />
                     </SelectTrigger>
-                    <SelectContent className={cn("rounded-none border", darkMode ? 'bg-[#0e0e0e] text-white border-gray-700' : 'bg-white text-gray-900 border-black')}>
+                    <SelectContent className={cn("cursor-target rounded-none border", darkMode ? 'bg-[#0e0e0e] text-white border-gray-700' : 'bg-white text-gray-900 border-black')}>
                       <SelectItem value="__custom">
                         <span className="tracking-wide">CUSTOM CONFIGURATION</span>
                       </SelectItem>
@@ -562,12 +562,12 @@ export default function AddChainPage() {
                     onChange={(e) => handleHomeChainInputChange('rpcUrl', e.target.value)}
                     disabled={!!homeChainDisabledFields.rpcUrl}
                     readOnly={!!homeChainDisabledFields.rpcUrl}
-                    className={cn("w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', homeChainDisabledFields.rpcUrl ? 'opacity-70 cursor-not-allowed' : '')}
+                    className={cn("cursor-target w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', homeChainDisabledFields.rpcUrl ? 'opacity-70 cursor-not-allowed' : '')}
                     placeholder="https://api.avax-test.network/ext/bc/C/rpc"
                   />
                 </div>
   
-                <div>
+                <div className="md:col-span-2">
                   <label className={cn("block text-xs font-medium tracking-widest mb-2", darkMode ? 'text-gray-300' : 'text-gray-700')}>
                     BLOCKCHAIN ID *
                   </label>
@@ -578,50 +578,12 @@ export default function AddChainPage() {
                     onChange={(e) => handleHomeChainInputChange('blockchainId', e.target.value)}
                     disabled={!!homeChainDisabledFields.blockchainId}
                     readOnly={!!homeChainDisabledFields.blockchainId}
-                    className={cn("w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', homeChainDisabledFields.blockchainId ? 'opacity-70 cursor-not-allowed' : '')}
+                    className={cn("cursor-target w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', homeChainDisabledFields.blockchainId ? 'opacity-70 cursor-not-allowed' : '')}
                     placeholder="0x7fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d5"
                   />
                 </div>
               </div>
-  
-              {/* Token Configuration */}
-              <div className={cn("mt-6 pt-6 border-t", darkMode ? 'border-gray-700' : 'border-black')}>
-                <h3 className="text-lg font-bold tracking-wide mb-4">
-                  TOKEN CONFIGURATION
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className={cn("block text-xs font-medium tracking-widest mb-2", darkMode ? 'text-gray-300' : 'text-gray-700')}>
-                      TOKEN ADDRESS *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={homeChain.tokenAddress}
-                      onChange={(e) => handleHomeChainInputChange('tokenAddress', e.target.value)}
-                      className={cn("w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black')}
-                      placeholder="0x9dafF7B0c496591CC20Af1D8394FF1cB8696c9a7"
-                    />
-                  </div>
-  
-                  <div>
-                    <label className={cn("block text-xs font-medium tracking-widest mb-2", darkMode ? 'text-gray-300' : 'text-gray-700')}>
-                      TOKEN DECIMALS *
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      min="0"
-                      max="18"
-                      value={homeChain.tokenDecimals}
-                      onChange={(e) => handleHomeChainInputChange('tokenDecimals', e.target.value)}
-                      className={cn("w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black')}
-                      placeholder="18"
-                    />
-                  </div>
-                </div>
-              </div>
-  
+
               {/* Teleporter Registry Configuration */}
               <div className={cn("mt-6 pt-6 border-t", darkMode ? 'border-gray-700' : 'border-black')}>
                 <div className="flex items-center gap-3 mb-4">
@@ -665,12 +627,52 @@ export default function AddChainPage() {
                       onChange={(e) => handleHomeChainInputChange('teleporterRegistryAddress', e.target.value)}
                       disabled={!!homeChainDisabledFields.teleporterRegistryAddress}
                       readOnly={!!homeChainDisabledFields.teleporterRegistryAddress}
-                      className={cn("w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', homeChainDisabledFields.teleporterRegistryAddress ? 'opacity-70 cursor-not-allowed' : '')}
+                      className={cn("cursor-target w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', homeChainDisabledFields.teleporterRegistryAddress ? 'opacity-70 cursor-not-allowed' : '')}
                       placeholder="0xF86Cb19Ad8405AEFa7d09C778215D2Cb6eBfB228"
                     />
                   </div>
                 )}
               </div>
+  
+              {/* Token Configuration */}
+              <div className={cn("mt-6 pt-6 border-t", darkMode ? 'border-gray-700' : 'border-black')}>
+                <h3 className="text-lg font-bold tracking-wide mb-4">
+                  TOKEN CONFIGURATION
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className={cn("block text-xs font-medium tracking-widest mb-2", darkMode ? 'text-gray-300' : 'text-gray-700')}>
+                      TOKEN ADDRESS *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={homeChain.tokenAddress}
+                      onChange={(e) => handleHomeChainInputChange('tokenAddress', e.target.value)}
+                      className={cn("cursor-target w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black')}
+                      placeholder="0x9dafF7B0c496591CC20Af1D8394FF1cB8696c9a7"
+                    />
+                  </div>
+  
+                  <div>
+                    <label className={cn("block text-xs font-medium tracking-widest mb-2", darkMode ? 'text-gray-300' : 'text-gray-700')}>
+                      TOKEN DECIMALS *
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      max="18"
+                      value={homeChain.tokenDecimals}
+                      onChange={(e) => handleHomeChainInputChange('tokenDecimals', e.target.value)}
+                      className={cn("cursor-target w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black')}
+                      placeholder="18"
+                    />
+                  </div>
+                </div>
+              </div>
+  
+              
             </section>
   
             {/* Remote Chain Configuration Block */}
@@ -686,11 +688,11 @@ export default function AddChainPage() {
                     disabled={chainsLoading}
                   >
                     <SelectTrigger
-                      className={cn("w-full md:w-[280px] border rounded-none tracking-wide", darkMode ? 'bg-[#0e0e0e]/60 border-gray-700 text-white' : 'bg-white border-black text-gray-900')}
+                      className={cn("cursor-target w-full md:w-[280px] border rounded-none tracking-wide", darkMode ? 'bg-[#0e0e0e]/60 border-gray-700 text-white' : 'bg-white border-black text-gray-900')}
                     >
                       <SelectValue placeholder={chainsLoading ? 'LOADING CHAINS...' : 'SELECT A CHAIN'} />
                     </SelectTrigger>
-                    <SelectContent className={cn("rounded-none border", darkMode ? 'bg-[#0e0e0e] text-white border-gray-700' : 'bg-white text-gray-900 border-black')}>
+                    <SelectContent className={cn("cursor-target rounded-none border", darkMode ? 'bg-[#0e0e0e] text-white border-gray-700' : 'bg-white text-gray-900 border-black')}>
                       <SelectItem value="__custom">
                         <span className="tracking-wide">CUSTOM CONFIGURATION</span>
                       </SelectItem>
@@ -740,12 +742,12 @@ export default function AddChainPage() {
                     onChange={(e) => handleRemoteChainInputChange('rpcUrl', e.target.value)}
                     disabled={!!remoteChainDisabledFields.rpcUrl}
                     readOnly={!!remoteChainDisabledFields.rpcUrl}
-                    className={cn("w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', remoteChainDisabledFields.rpcUrl ? 'opacity-70 cursor-not-allowed' : '')}
+                    className={cn("cursor-target w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', remoteChainDisabledFields.rpcUrl ? 'opacity-70 cursor-not-allowed' : '')}
                     placeholder="https://subnets.avax.network/dispatch/testnet/rpc"
                   />
                 </div>
   
-                <div>
+                <div className="md:col-span-2">
                   <label className={cn("block text-xs font-medium tracking-widest mb-2", darkMode ? 'text-gray-300' : 'text-gray-700')}>
                     BLOCKCHAIN ID *
                   </label>
@@ -756,86 +758,12 @@ export default function AddChainPage() {
                     onChange={(e) => handleRemoteChainInputChange('blockchainId', e.target.value)}
                     disabled={!!remoteChainDisabledFields.blockchainId}
                     readOnly={!!remoteChainDisabledFields.blockchainId}
-                    className={cn("w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', remoteChainDisabledFields.blockchainId ? 'opacity-70 cursor-not-allowed' : '')}
+                    className={cn("cursor-target w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', remoteChainDisabledFields.blockchainId ? 'opacity-70 cursor-not-allowed' : '')}
                     placeholder="0x9f49313c3f022e9fe5b6e7c1d98f0f53d86e53456c5e075e1881cac1c15968e4"
                   />
                 </div>
               </div>
-  
-              {/* Token Configuration */}
-              <div className={cn("mt-6 pt-6 border-t", darkMode ? 'border-gray-700' : 'border-black')}>
-                <h3 className="text-lg font-bold tracking-wide mb-4">
-                  TOKEN CONFIGURATION
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className={cn("flex items-center gap-2 text-xs font-medium tracking-widest mb-2", darkMode ? 'text-gray-300' : 'text-gray-700')}>
-                      TOKEN NAME *
-                      <div className="relative group">
-                        <Info className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
-                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none">
-                          <div className={cn("relative text-xs rounded-none px-3 py-2 shadow-lg border whitespace-nowrap", darkMode ? 'bg-gray-800 text-gray-200 border-gray-700' : 'bg-[#0e0e0e] text-white border-gray-600')}>
-                            WHAT SHOULD BE YOUR WRAPPED TOKEN NAME ON YOUR CHAIN. EXAMPLE: WRAPPED AVAX
-                            <div className={cn("absolute top-full left-1/2 -translate-x-1/2 -mt-px w-0 h-0 border-l-transparent border-r-transparent border-b-transparent border-4", darkMode ? 'border-t-gray-800' : 'border-t-gray-900')}></div>
-                          </div>
-                        </div>
-                      </div>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={remoteChain.tokenName}
-                      onChange={(e) => handleRemoteChainInputChange('tokenName', e.target.value)}
-                      disabled={!!remoteChainDisabledFields.tokenName}
-                      readOnly={!!remoteChainDisabledFields.tokenName}
-                      className={cn("w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', remoteChainDisabledFields.tokenName ? 'opacity-70 cursor-not-allowed' : '')}
-                      placeholder="Wrapped Avax"
-                    />
-                  </div>
-  
-                  <div>
-                    <label className={cn("flex items-center gap-2 text-xs font-medium tracking-widest mb-2", darkMode ? 'text-gray-300' : 'text-gray-700')}>
-                      TOKEN SYMBOL * 
-                      <div className="relative group">
-                        <Info className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
-                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none">
-                          <div className={cn("relative text-xs rounded-none px-3 py-2 shadow-lg border whitespace-nowrap", darkMode ? 'bg-gray-800 text-gray-200 border-gray-700' : 'bg-[#0e0e0e] text-white border-gray-600')}>
-                            WHAT SHOULD BE YOUR WRAPPED TOKEN SYMBOL ON YOUR CHAIN. EXAMPLE: WAVAX
-                            <div className={cn("absolute top-full left-1/2 -translate-x-1/2 -mt-px w-0 h-0 border-l-transparent border-r-transparent border-b-transparent border-4", darkMode ? 'border-t-gray-800' : 'border-t-gray-900')}></div>
-                          </div>
-                        </div>
-                      </div>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={remoteChain.tokenSymbol}
-                      onChange={(e) => handleRemoteChainInputChange('tokenSymbol', e.target.value)}
-                      disabled={!!remoteChainDisabledFields.tokenSymbol}
-                      readOnly={!!remoteChainDisabledFields.tokenSymbol}
-                      className={cn("w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', remoteChainDisabledFields.tokenSymbol ? 'opacity-70 cursor-not-allowed' : '')}
-                      placeholder="WAVAX"
-                    />
-                  </div>
-  
-                  <div>
-                    <label className={cn("block text-xs font-medium tracking-widest mb-2", darkMode ? 'text-gray-300' : 'text-gray-700')}>
-                      TOKEN DECIMALS *
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      min="0"
-                      max="18"
-                      value={remoteChain.tokenDecimals}
-                      onChange={(e) => handleRemoteChainInputChange('tokenDecimals', e.target.value)}
-                      className={cn("w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black')}
-                      placeholder="18"
-                    />
-                  </div>
-                </div>
-              </div>
-  
+
               {/* Teleporter Registry Configuration */}
               <div className={cn("mt-6 pt-6 border-t", darkMode ? 'border-gray-700' : 'border-black')}>
                 <div className="flex items-center gap-3 mb-4">
@@ -879,21 +807,96 @@ export default function AddChainPage() {
                       onChange={(e) => handleRemoteChainInputChange('teleporterRegistryAddress', e.target.value)}
                       disabled={!!remoteChainDisabledFields.teleporterRegistryAddress}
                       readOnly={!!remoteChainDisabledFields.teleporterRegistryAddress}
-                      className={cn("w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', remoteChainDisabledFields.teleporterRegistryAddress ? 'opacity-70 cursor-not-allowed' : '')}
+                      className={cn("cursor-target w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', remoteChainDisabledFields.teleporterRegistryAddress ? 'opacity-70 cursor-not-allowed' : '')}
                       placeholder="0xF86Cb19Ad8405AEFa7d09C778215D2Cb6eBfB228"
                     />
                   </div>
                 )}
               </div>
+  
+              {/* Token Configuration */}
+              <div className={cn("mt-6 pt-6 border-t", darkMode ? 'border-gray-700' : 'border-black')}>
+                <h3 className="text-lg font-bold tracking-wide mb-4">
+                  TOKEN CONFIGURATION
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className={cn("flex items-center gap-2 text-xs font-medium tracking-widest mb-2", darkMode ? 'text-gray-300' : 'text-gray-700')}>
+                      TOKEN NAME *
+                      <div className="relative group">
+                        <Info className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
+                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none">
+                          <div className={cn("relative text-xs rounded-none px-3 py-2 shadow-lg border whitespace-nowrap", darkMode ? 'bg-gray-800 text-gray-200 border-gray-700' : 'bg-[#0e0e0e] text-white border-gray-600')}>
+                            WHAT SHOULD BE YOUR WRAPPED TOKEN NAME ON YOUR CHAIN. EXAMPLE: WRAPPED AVAX
+                            <div className={cn("absolute top-full left-1/2 -translate-x-1/2 -mt-px w-0 h-0 border-l-transparent border-r-transparent border-b-transparent border-4", darkMode ? 'border-t-gray-800' : 'border-t-gray-900')}></div>
+                          </div>
+                        </div>
+                      </div>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={remoteChain.tokenName}
+                      onChange={(e) => handleRemoteChainInputChange('tokenName', e.target.value)}
+                      disabled={!!remoteChainDisabledFields.tokenName}
+                      readOnly={!!remoteChainDisabledFields.tokenName}
+                      className={cn("cursor-target w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', remoteChainDisabledFields.tokenName ? 'opacity-70 cursor-not-allowed' : '')}
+                      placeholder="Wrapped Avax"
+                    />
+                  </div>
+  
+                  <div>
+                    <label className={cn("flex items-center gap-2 text-xs font-medium tracking-widest mb-2", darkMode ? 'text-gray-300' : 'text-gray-700')}>
+                      TOKEN SYMBOL * 
+                      <div className="relative group">
+                        <Info className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
+                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none">
+                          <div className={cn("relative text-xs rounded-none px-3 py-2 shadow-lg border whitespace-nowrap", darkMode ? 'bg-gray-800 text-gray-200 border-gray-700' : 'bg-[#0e0e0e] text-white border-gray-600')}>
+                            WHAT SHOULD BE YOUR WRAPPED TOKEN SYMBOL ON YOUR CHAIN. EXAMPLE: WAVAX
+                            <div className={cn("absolute top-full left-1/2 -translate-x-1/2 -mt-px w-0 h-0 border-l-transparent border-r-transparent border-b-transparent border-4", darkMode ? 'border-t-gray-800' : 'border-t-gray-900')}></div>
+                          </div>
+                        </div>
+                      </div>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={remoteChain.tokenSymbol}
+                      onChange={(e) => handleRemoteChainInputChange('tokenSymbol', e.target.value)}
+                      disabled={!!remoteChainDisabledFields.tokenSymbol}
+                      readOnly={!!remoteChainDisabledFields.tokenSymbol}
+                      className={cn("cursor-target w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', remoteChainDisabledFields.tokenSymbol ? 'opacity-70 cursor-not-allowed' : '')}
+                      placeholder="WAVAX"
+                    />
+                  </div>
+  
+                  <div>
+                    <label className={cn("block text-xs font-medium tracking-widest mb-2", darkMode ? 'text-gray-300' : 'text-gray-700')}>
+                      TOKEN DECIMALS *
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      max="18"
+                      value={remoteChain.tokenDecimals}
+                      onChange={(e) => handleRemoteChainInputChange('tokenDecimals', e.target.value)}
+                      className={cn("cursor-target w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black')}
+                      placeholder="18"
+                    />
+                  </div>
+                </div>
+              </div>
+  
             </section>
   
             {/* Submit Button Block */}
-            <section className={cn("border p-6", darkMode ? 'border-gray-700' : 'border-black')}>
+            <section className={cn("col-span-2 border p-6", darkMode ? 'border-gray-700' : 'border-black')}>
               <div className="flex justify-end">
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className={cn("flex items-center gap-3 px-8 py-4 border rounded-none font-semibold tracking-widest transition-all", isSubmitting ? 'cursor-not-allowed opacity-60' : 'cursor-pointer', darkMode ? 'bg-red-900/20 hover:bg-red-900/30 text-red-400 border-red-700/30' : 'bg-red-100 hover:bg-red-200 text-red-600 border-red-300')}
+                  className={cn("cursor-target flex items-center gap-3 px-8 py-4 border rounded-none font-semibold tracking-widest transition-all", isSubmitting ? 'cursor-not-allowed opacity-60' : 'cursor-pointer', darkMode ? 'bg-red-500/20 hover:bg-red-500/30 text-red-400 border-red-700/30' : 'bg-red-200 hover:bg-red-300 text-red-600 border-red-300')}
                 >
                   {isSubmitting ? (
                     <>
