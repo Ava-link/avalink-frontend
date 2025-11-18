@@ -494,9 +494,9 @@ export default function AddChainPage() {
         </section>
   
         {bridgeType === 'erc20-erc20' ? (
-          <form onSubmit={handleSubmit} className="contents grid grid-cols-1 md:grid-cols-2 gap-2">
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {/* Home Chain Configuration Block */}
-            <section className={cn("col-span-1 border p-6", darkMode ? 'border-gray-700' : 'border-black')}>
+            <section className={cn("col-span-1 md:col-span-1 border p-6", darkMode ? 'border-gray-700' : 'border-black')}>
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
                 <h2 className="text-2xl font-bold tracking-wide">
                   HOME CHAIN CONFIGURATION
@@ -676,7 +676,7 @@ export default function AddChainPage() {
             </section>
   
             {/* Remote Chain Configuration Block */}
-            <section className={cn("border p-6", darkMode ? 'border-gray-700' : 'border-black')}>
+            <section className={cn("col-span-1 md:col-span-1 border p-6", darkMode ? 'border-gray-700' : 'border-black')}>
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6">
                 <h2 className="text-2xl font-bold tracking-wide">
                   REMOTE CHAIN CONFIGURATION
@@ -891,7 +891,7 @@ export default function AddChainPage() {
             </section>
   
             {/* Submit Button Block */}
-            <section className={cn("col-span-2 border p-6", darkMode ? 'border-gray-700' : 'border-black')}>
+            <section className={cn("col-span-1 md:col-span-2 border p-6", darkMode ? 'border-gray-700' : 'border-black')}>
               <div className="flex justify-end">
                 <button
                   type="submit"
