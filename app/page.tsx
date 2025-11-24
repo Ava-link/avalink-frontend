@@ -78,7 +78,6 @@ export default function Landing() {
         >
           <h2 className="font-bold mb-3">FEATURES<br/></h2>
           -- MULTI-CHAIN SUPPORT<br/>
-          -- LOW GAS FEES<br/>
           -- HIGH THROUGHPUT<br/>
           -- INSTANT BRIDGING<br/>
           -- INSTANT DEPLOYMENT<br/>
@@ -88,10 +87,9 @@ export default function Landing() {
           <div className="text-[10px]">INSTANT BRIDGING</div>
         </section>
 
-        {/* DESIGN PRINCIPLES */}
         <section
           className={cn(
-            "border p-6 text-sm tracking-widest h-40 sm:h-56 lg:h-64 overflow-hidden",
+            "border p-6 text-sm tracking-widest h-auto sm:h-56 lg:h-64 overflow-hidden",
             darkMode ? "border-gray-700" : "border-black"
           )}
         >

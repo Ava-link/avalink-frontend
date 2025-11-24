@@ -7,7 +7,7 @@
     margin: 0 auto;
     width: 100%;
     max-width: 340px;
-    overflow: visible;
+    overflow: hidden;
   }
   
   #computer .computer-graphic {
@@ -15,6 +15,7 @@
     display: block;
     width: 340px;
     height: 300px;
+    flex-shrink: 0;
     background:
   
       /* Bottom Section */
@@ -150,10 +151,36 @@
       }
     }
   
+  @media (max-width: 640px) {
+    #computer {
+      max-width: 100%;
+      width: 100%;
+      padding: 0 1rem;
+    }
+    
+    #computer .computer-graphic {
+      transform: scale(0.9);
+      transform-origin: center;
+    }
+  }
+  
   @media (max-width: 480px) {
     #computer {
-      transform: scale(0.85);
-      transform-origin: top center;
+      padding: 0 0.75rem;
+    }
+    
+    #computer .computer-graphic {
+      transform: scale(0.8);
+    }
+  }
+  
+  @media (max-width: 360px) {
+    #computer {
+      padding: 0 0.5rem;
+    }
+    
+    #computer .computer-graphic {
+      transform: scale(0.7);
     }
   }
   

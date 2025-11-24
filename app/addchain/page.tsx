@@ -94,6 +94,23 @@ export default function AddChainPage() {
   const [remoteChainICMDisabled, setRemoteChainICMDisabled] = useState(false);
   const [chainsLoading, setChainsLoading] = useState(false);
   const [chainsError, setChainsError] = useState<string | null>(null);
+  
+  // Validation states
+  const [homeChainBlockchainIdValid, setHomeChainBlockchainIdValid] = useState<boolean | null>(null);
+  const [homeChainBlockchainIdError, setHomeChainBlockchainIdError] = useState<string | null>(null);
+  const [homeChainBlockchainIdVerifying, setHomeChainBlockchainIdVerifying] = useState(false);
+  const [homeTokenVerified, setHomeTokenVerified] = useState(false);
+  const [homeTokenVerifying, setHomeTokenVerifying] = useState(false);
+  const [homeTokenError, setHomeTokenError] = useState<string | null>(null);
+  const [homeTokenData, setHomeTokenData] = useState<{ name?: string; symbol?: string; decimals?: number } | null>(null);
+  const [remoteTokenConfigDisabled, setRemoteTokenConfigDisabled] = useState(true);
+  const [selectedNetwork, setSelectedNetwork] = useState<'mainnet' | 'testnet' | 'fuji'>('fuji');
+  const [remoteChainBlockchainIdValid, setRemoteChainBlockchainIdValid] = useState<boolean | null>(null);
+  const [remoteChainBlockchainIdError, setRemoteChainBlockchainIdError] = useState<string | null>(null);
+  const [remoteChainBlockchainIdVerifying, setRemoteChainBlockchainIdVerifying] = useState(false);
+  const [homeChainBlockchainName, setHomeChainBlockchainName] = useState<string | null>(null);
+  const [remoteChainBlockchainName, setRemoteChainBlockchainName] = useState<string | null>(null);
+
 
   const teleporter_manager_address =
     process.env.NEXT_PUBLIC_TELEPORTER_MANAGER_ADDRESS;
@@ -103,7 +120,7 @@ export default function AddChainPage() {
       setChainsLoading(true);
       setChainsError(null);
       try {
-        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002';
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
         const response = await fetch(`${backendUrl}/deploy/chains`, {
           method: 'GET',
           headers: {
@@ -137,6 +154,34 @@ export default function AddChainPage() {
       ...prev,
       [field]: value
     }));
+    
+    // Reset validation when blockchain ID changes
+    if (field === 'blockchainId') {
+      setHomeChainBlockchainIdValid(null);
+      setHomeChainBlockchainIdError(null);
+      setRemoteTokenConfigDisabled(true);
+      setHomeTokenVerified(false);
+      setHomeTokenData(null);
+      // Reset remote chain token config
+      setRemoteChain(prev => ({
+        ...prev,
+        tokenName: '',
+        tokenSymbol: '',
+      }));
+    }
+    
+    // Reset token verification when token address or RPC URL changes
+    if (field === 'tokenAddress' || field === 'rpcUrl') {
+      setHomeTokenVerified(false);
+      setHomeTokenError(null);
+      setHomeTokenData(null);
+      setRemoteTokenConfigDisabled(true);
+      setRemoteChain(prev => ({
+        ...prev,
+        tokenName: '',
+        tokenSymbol: '',
+      }));
+    }
   };
 
   const handleHomeChainSelect = (chainId: string) => {
@@ -178,8 +223,15 @@ export default function AddChainPage() {
       if (selectedChain.blockchainId) {
         updated.blockchainId = selectedChain.blockchainId;
         disabled.blockchainId = true;
+        // Auto-verify if blockchain ID is provided
+        if (selectedChain.blockchainId) {
+          verifyBlockchainId(selectedChain.blockchainId, selectedNetwork);
+        }
       } else {
         disabled.blockchainId = false;
+        // Reset validation when blockchain ID is cleared
+        setHomeChainBlockchainIdValid(null);
+        setHomeChainBlockchainIdError(null);
       }
 
       if (selectedChain.teleporterRegistryAddress) {
@@ -219,6 +271,9 @@ export default function AddChainPage() {
         teleporterRegistryAddress: '',
         teleporterRegistryDeploy: false,
       }));
+      // Reset remote chain validation states
+      setRemoteChainBlockchainIdValid(null);
+      setRemoteChainBlockchainIdError(null);
       return;
     }
 
@@ -246,9 +301,16 @@ export default function AddChainPage() {
       if (selectedChain.blockchainId) {
         updated.blockchainId = selectedChain.blockchainId;
         disabled.blockchainId = true;
+        // Auto-verify if blockchain ID is provided
+        if (selectedChain.blockchainId) {
+          verifyRemoteChainBlockchainId(selectedChain.blockchainId, selectedNetwork);
+        }
       } else {
         updated.blockchainId = '';
         disabled.blockchainId = false;
+        // Reset validation when blockchain ID is cleared
+        setRemoteChainBlockchainIdValid(null);
+        setRemoteChainBlockchainIdError(null);
       }
 
       if (selectedChain.teleporterRegistryAddress) {
@@ -259,10 +321,9 @@ export default function AddChainPage() {
         disabled.teleporterRegistryAddress = false;
       }
 
-      updated.tokenName = '';
+      // Preserve token config - don't clear it when selecting a chain
+      // Token config is auto-filled from home chain token verification and should persist
       disabled.tokenName = false;
-
-      updated.tokenSymbol = '';
       disabled.tokenSymbol = false;
 
       setRemoteChainDisabledFields(disabled);
@@ -286,6 +347,13 @@ export default function AddChainPage() {
       ...prev,
       [field]: value
     }));
+    
+    // Reset validation when blockchain ID changes (but don't clear token config)
+    if (field === 'blockchainId') {
+      setRemoteChainBlockchainIdValid(null);
+      setRemoteChainBlockchainIdError(null);
+      // Don't clear token config - it should remain even when blockchain ID changes
+    }
   };
 
   const handleHomeChainICMSetupChange = (checked: boolean) => {
@@ -330,8 +398,352 @@ export default function AddChainPage() {
     setTimeout(() => setShowToast(false), 3000);
   };
 
+  // Base58 alphabet for Avalanche
+  const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+
+  // Base58 encoding function
+  const base58Encode = (data: Buffer): string => {
+    let num = BigInt('0x' + data.toString('hex'));
+    let encoded = '';
+
+    const zero = BigInt(0);
+    const base = BigInt(58);
+    while (num > zero) {
+      const remainder = Number(num % base);
+      encoded = BASE58_ALPHABET[remainder] + encoded;
+      num = num / base;
+    }
+
+    // Handle leading zeros
+    for (const byte of data) {
+      if (byte === 0) {
+        encoded = '1' + encoded;
+      } else {
+        break;
+      }
+    }
+
+    return encoded;
+  };
+
+  // CB58 encoding (Base58Check) with checksum
+  const cb58Encode = async (data: Buffer): Promise<string> => {
+    // Calculate checksum (last 4 bytes of SHA256 hash) using Web Crypto API
+    // Convert Buffer to Uint8Array for crypto.subtle.digest
+    const dataArray = new Uint8Array(data);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', dataArray);
+    const hashArray = new Uint8Array(hashBuffer);
+    const checksum = hashArray.slice(-4);
+
+    // Append checksum to data
+    const dataWithChecksum = Buffer.concat([data, Buffer.from(checksum)]);
+
+    // Encode to base58
+    return base58Encode(dataWithChecksum);
+  };
+
+  // Convert blockchain ID to CB58 encoding
+  const encodeBlockchainIdToBase58 = async (blockchainId: string): Promise<string> => {
+    try {
+      // Remove 0x prefix if present
+      const hexString = blockchainId.startsWith('0x') ? blockchainId.slice(2) : blockchainId;
+
+      // Convert hex string to Buffer
+      const buffer = Buffer.from(hexString, 'hex');
+
+      // Encode to CB58
+      return await cb58Encode(buffer);
+    } catch (error) {
+      console.error('Error encoding blockchain ID to base58:', error);
+      throw new Error('Failed to encode blockchain ID to base58');
+    }
+  };
+
+  // Verify remote chain blockchain ID using the API
+  const verifyRemoteChainBlockchainId = async (blockchainId: string, network: 'mainnet' | 'testnet' | 'fuji' = selectedNetwork): Promise<boolean> => {
+    if (!blockchainId) {
+      setRemoteChainBlockchainIdValid(null);
+      setRemoteChainBlockchainIdError(null);
+      return false;
+    }
+
+    setRemoteChainBlockchainIdVerifying(true);
+    setRemoteChainBlockchainIdError(null);
+
+    try {
+      // Convert blockchain ID to base58
+      let base58BlockchainId: string;
+      try {
+        base58BlockchainId = await encodeBlockchainIdToBase58(blockchainId);
+      } catch (encodeError) {
+        setRemoteChainBlockchainIdValid(false);
+        setRemoteChainBlockchainIdError('Invalid blockchain ID format. Please ensure it is a valid hex string.');
+        setRemoteChainBlockchainIdVerifying(false);
+        return false;
+      }
+      
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+      const response = await fetch(`${backendUrl}/checks/blockChain/${network}/${base58BlockchainId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+        if (response.status === 404) {
+          // Try other networks if current network fails
+          if (network === 'mainnet') {
+            const testnetResult = await verifyRemoteChainBlockchainId(blockchainId, 'testnet');
+            if (testnetResult) return testnetResult;
+            const fujiResult = await verifyRemoteChainBlockchainId(blockchainId, 'fuji');
+            if (fujiResult) return fujiResult;
+          } else if (network === 'testnet') {
+            const fujiResult = await verifyRemoteChainBlockchainId(blockchainId, 'fuji');
+            if (fujiResult) return fujiResult;
+          }
+          setRemoteChainBlockchainIdValid(false);
+          setRemoteChainBlockchainIdError(errorData.message || 'Blockchain not found');
+          return false;
+        } else {
+          setRemoteChainBlockchainIdValid(false);
+          setRemoteChainBlockchainIdError(errorData.error || errorData.message || 'Failed to verify blockchain');
+          return false;
+        }
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        setRemoteChainBlockchainIdValid(true);
+        setRemoteChainBlockchainName(data.data.blockchainName);
+        setRemoteChainBlockchainIdError(null);
+        return true;
+      } else {
+        setRemoteChainBlockchainIdValid(false);
+        setRemoteChainBlockchainIdError(data.message || 'Blockchain verification failed');
+        return false;
+      }
+    } catch (error) {
+      console.error('Error verifying remote chain blockchain ID:', error);
+      setRemoteChainBlockchainIdValid(false);
+      setRemoteChainBlockchainIdError(error instanceof Error ? error.message : 'Failed to verify blockchain');
+      return false;
+    } finally {
+      setRemoteChainBlockchainIdVerifying(false);
+    }
+  };
+
+  // Verify blockchain ID using the API (for home chain)
+  const verifyBlockchainId = async (blockchainId: string, network: 'mainnet' | 'testnet' | 'fuji' = selectedNetwork): Promise<boolean> => {
+    if (!blockchainId) {
+      setHomeChainBlockchainIdValid(null);
+      setHomeChainBlockchainIdError(null);
+      return false;
+    }
+
+    setHomeChainBlockchainIdVerifying(true);
+    setHomeChainBlockchainIdError(null);
+
+    try {
+      // Convert blockchain ID to base58
+      let base58BlockchainId: string;
+      try {
+        base58BlockchainId = await encodeBlockchainIdToBase58(blockchainId);
+      } catch (encodeError) {
+        setHomeChainBlockchainIdValid(false);
+        setHomeChainBlockchainIdError('Invalid blockchain ID format. Please ensure it is a valid hex string.');
+        setHomeChainBlockchainIdVerifying(false);
+        return false;
+      }
+      
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+      const response = await fetch(`${backendUrl}/checks/blockChain/${network}/${base58BlockchainId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+        if (response.status === 404) {
+          // Try other networks if current network fails
+          if (network === 'mainnet') {
+            const testnetResult = await verifyBlockchainId(blockchainId, 'testnet');
+            if (testnetResult) return testnetResult;
+            const fujiResult = await verifyBlockchainId(blockchainId, 'fuji');
+            if (fujiResult) return fujiResult;
+          } else if (network === 'testnet') {
+            const fujiResult = await verifyBlockchainId(blockchainId, 'fuji');
+            if (fujiResult) return fujiResult;
+          }
+          setHomeChainBlockchainIdValid(false);
+          setHomeChainBlockchainIdError(errorData.message || 'Blockchain not found');
+          return false;
+        } else {
+          setHomeChainBlockchainIdValid(false);
+          setHomeChainBlockchainIdError(errorData.error || errorData.message || 'Failed to verify blockchain');
+          return false;
+        }
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        setHomeChainBlockchainIdValid(true);
+        setHomeChainBlockchainName(data.data.blockchainName);
+        setHomeChainBlockchainIdError(null);
+        return true;
+      } else {
+        setHomeChainBlockchainIdValid(false);
+        setHomeChainBlockchainIdError(data.message || 'Blockchain verification failed');
+        return false;
+      }
+    } catch (error) {
+      console.error('Error verifying blockchain ID:', error);
+      setHomeChainBlockchainIdValid(false);
+      setHomeChainBlockchainIdError(error instanceof Error ? error.message : 'Failed to verify blockchain');
+      return false;
+    } finally {
+      setHomeChainBlockchainIdVerifying(false);
+    }
+  };
+
+  // Verify token address
+  const verifyToken = async (tokenAddress: string, blockchainId: string, rpcUrl: string) => {
+    if (!tokenAddress || !blockchainId || !rpcUrl) {
+      return null;
+    }
+
+    try {
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+      const response = await fetch(
+        `${backendUrl}/checks/token/${tokenAddress}/${blockchainId}?rpcUrl=${encodeURIComponent(rpcUrl)}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+        throw new Error(errorData.error || errorData.message || 'Failed to verify token');
+      }
+
+      const data = await response.json();
+      if (data.success && data.data?.isERC20) {
+        return {
+          name: data.data.name,
+          symbol: data.data.symbol,
+          decimals: data.data.decimals,
+        };
+      } else {
+        throw new Error(data.message || 'Token is not ERC20 compliant');
+      }
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  // Verify home chain token and auto-fill remote chain config
+  const verifyHomeToken = async () => {
+    if (!homeChain.tokenAddress || !homeChain.blockchainId || !homeChain.rpcUrl) {
+      setHomeTokenVerified(false);
+      setHomeTokenError(null);
+      setHomeTokenData(null);
+      setRemoteTokenConfigDisabled(true);
+      return;
+    }
+
+    setHomeTokenVerifying(true);
+    setHomeTokenError(null);
+
+    try {
+      const tokenData = await verifyToken(
+        homeChain.tokenAddress,
+        homeChain.blockchainId,
+        homeChain.rpcUrl
+      );
+
+      if (!tokenData) {
+        throw new Error('Failed to verify token');
+      }
+
+      setHomeTokenData(tokenData);
+      setHomeTokenVerified(true);
+      setHomeTokenError(null);
+
+      // Auto-fill home chain token decimals
+      setHomeChain(prev => ({
+        ...prev,
+        tokenDecimals: String(tokenData.decimals || 18),
+      }));
+
+      // Auto-fill remote chain token config
+      const wrappedName = `wrapped ${tokenData.name || 'Token'}`;
+      const wrappedSymbol = `W${tokenData.symbol || 'TKN'}`;
+      
+      setRemoteChain(prev => ({
+        ...prev,
+        tokenName: wrappedName,
+        tokenSymbol: wrappedSymbol,
+        tokenDecimals: String(tokenData.decimals || 18),
+      }));
+
+      // Keep fields disabled even after verification - they are auto-filled and not editable
+      // Don't set remoteTokenConfigDisabled to false
+    } catch (error) {
+      console.error('Error verifying token:', error);
+      setHomeTokenVerified(false);
+      setHomeTokenError(error instanceof Error ? error.message : 'Failed to verify token');
+      setHomeTokenData(null);
+      setRemoteTokenConfigDisabled(true);
+      // Clear remote chain token config on error
+      setRemoteChain(prev => ({
+        ...prev,
+        tokenName: '',
+        tokenSymbol: '',
+      }));
+    } finally {
+      setHomeTokenVerifying(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // First verify home chain blockchain ID if not already verified
+    let homeBlockchainValid = homeChainBlockchainIdValid;
+    if (!homeBlockchainValid) {
+      homeBlockchainValid = await verifyBlockchainId(homeChain.blockchainId, selectedNetwork);
+      if (!homeBlockchainValid) {
+        showToastMessage('Please verify the home chain blockchain ID is correct before deploying');
+        return;
+      }
+    }
+
+    // Verify remote chain blockchain ID if not already verified
+    let remoteBlockchainValid = remoteChainBlockchainIdValid;
+    if (!remoteBlockchainValid) {
+      remoteBlockchainValid = await verifyRemoteChainBlockchainId(remoteChain.blockchainId, selectedNetwork);
+      if (!remoteBlockchainValid) {
+        showToastMessage('Please verify the remote chain blockchain ID is correct before deploying');
+        return;
+      }
+    }
+
+    // Verify token if not already verified
+    if (!homeTokenVerified) {
+      await verifyHomeToken();
+      if (!homeTokenVerified) {
+        showToastMessage('Please verify the token address is correct before deploying');
+        return;
+      }
+    }
+
+    // Now proceed with deployment
     setIsSubmitting(true);
 
     try {
@@ -374,7 +786,7 @@ export default function AddChainPage() {
       };
 
       // Send PUT request to API
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002';
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
       const response = await fetch(`${backendUrl}/deploy/bridge`, {
         method: 'PUT',
         headers: {
@@ -413,6 +825,14 @@ export default function AddChainPage() {
       setHomeChainHasICMSetup(true);
       setRemoteChainHasICMSetup(true);
       
+      // Reset validation states
+      setHomeChainBlockchainIdValid(null);
+      setHomeChainBlockchainIdError(null);
+      setHomeTokenVerified(false);
+      setHomeTokenError(null);
+      setHomeTokenData(null);
+      setRemoteTokenConfigDisabled(true);
+      
       // Redirect to home page after a short delay
       setTimeout(() => {
         router.push('/');
@@ -433,13 +853,55 @@ export default function AddChainPage() {
       <div className="grid grid-cols-1 gap-2">
         
         {/* Page Title Block */}
-        <section className={cn("border p-6", darkMode ? 'border-gray-700' : 'border-black')}>
-          <h1 className="text-4xl md:text-5xl font-bold tracking-wide mb-2">
-            DEPLOY BRIDGE
-          </h1>
-          <p className={cn("text-sm tracking-widest", darkMode ? 'text-gray-400' : 'text-gray-600')}>
-            CONFIGURE AND DEPLOY A BRIDGE BETWEEN HOME AND REMOTE CHAINS
-          </p>
+        <section className={cn("border p-6 flex flex-col md:flex-row justify-between items-center", darkMode ? 'border-gray-700' : 'border-black')}>
+          <div>
+            <h1 className="text-4xl md:text-5xl font-bold tracking-wide mb-2">
+              DEPLOY BRIDGE
+            </h1>
+            <p className={cn("text-sm tracking-widest", darkMode ? 'text-gray-400' : 'text-gray-600')}>
+              CONFIGURE AND DEPLOY A BRIDGE BETWEEN HOME AND REMOTE CHAINS
+            </p>
+          </div>
+          <div>
+          <Select
+              value={selectedNetwork}
+                    onValueChange={(value) => {
+                      const newNetwork = value as 'mainnet' | 'testnet' | 'fuji';
+                      setSelectedNetwork(newNetwork);
+                      // Reset validation when network changes
+                      setHomeChainBlockchainIdValid(null);
+                      setHomeChainBlockchainIdError(null);
+                      setRemoteChainBlockchainIdValid(null);
+                      setRemoteChainBlockchainIdError(null);
+                      // Auto-verify blockchain IDs with new network if they are already entered
+                      if (homeChain.blockchainId && !homeChainDisabledFields.blockchainId) {
+                        verifyBlockchainId(homeChain.blockchainId, newNetwork);
+                      }
+                      if (remoteChain.blockchainId && !remoteChainDisabledFields.blockchainId) {
+                        verifyRemoteChainBlockchainId(remoteChain.blockchainId, newNetwork);
+                      }
+                    }}
+            >
+              <SelectTrigger
+                className={cn("cursor-target w-[140px] border rounded-none tracking-wide", darkMode ? 'bg-[#0e0e0e]/60 border-gray-700 text-white' : 'bg-white border-black text-gray-900')}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className={cn("cursor-target rounded-none border", darkMode ? 'bg-[#0e0e0e] text-white border-gray-700' : 'bg-white text-gray-900 border-black')}>
+                <SelectItem value="mainnet" disabled>
+                  <span className="tracking-wide">MAINNET</span>
+                </SelectItem>
+                {/* <SelectItem value="testnet">
+                  <span className="tracking-wide">TESTNET</span>
+                </SelectItem> */}
+                <SelectItem value="fuji">
+                  <span className="tracking-wide">FUJI</span>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+
         </section>
   
         {/* Bridge Type Selection Block */}
@@ -534,7 +996,7 @@ export default function AddChainPage() {
                             <span className="tracking-wide">{chain.name.toUpperCase()}</span>
                             {chain.isTestnet && (
                               <span className="ml-auto text-xs uppercase tracking-wide text-red-500">
-                                TESTNET
+                                FUJI
                               </span>
                             )}
                           </div>
@@ -571,16 +1033,38 @@ export default function AddChainPage() {
                   <label className={cn("block text-xs font-medium tracking-widest mb-2", darkMode ? 'text-gray-300' : 'text-gray-700')}>
                     BLOCKCHAIN ID *
                   </label>
-                  <input
-                    type="text"
-                    required
-                    value={homeChain.blockchainId}
-                    onChange={(e) => handleHomeChainInputChange('blockchainId', e.target.value)}
-                    disabled={!!homeChainDisabledFields.blockchainId}
-                    readOnly={!!homeChainDisabledFields.blockchainId}
-                    className={cn("cursor-target w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', homeChainDisabledFields.blockchainId ? 'opacity-70 cursor-not-allowed' : '')}
-                    placeholder="0x7fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d5"
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      value={homeChain.blockchainId}
+                      onChange={(e) => handleHomeChainInputChange('blockchainId', e.target.value)}
+                      onBlur={() => {
+                        if (homeChain.blockchainId && !homeChainDisabledFields.blockchainId) {
+                          verifyBlockchainId(homeChain.blockchainId, selectedNetwork);
+                        }
+                      }}
+                      disabled={!!homeChainDisabledFields.blockchainId}
+                      readOnly={!!homeChainDisabledFields.blockchainId}
+                      className={cn("cursor-target w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', homeChainDisabledFields.blockchainId ? 'opacity-70 cursor-not-allowed' : '', homeChainBlockchainIdValid === false ? 'border-red-500' : homeChainBlockchainIdValid === true ? 'border-green-500' : '')}
+                      placeholder="0x7fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d5"
+                    />
+                    {homeChainBlockchainIdVerifying && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    )}
+                  </div>
+                  {homeChainBlockchainIdError && (
+                    <p className="mt-2 text-xs tracking-widest text-red-500">
+                      {homeChainBlockchainIdError}
+                    </p>
+                  )}
+                  {homeChainBlockchainIdValid === true && (
+                    <p className="mt-2 text-xs tracking-widest text-green-500">
+                      ✓ Blockchain : {homeChainBlockchainName?.toUpperCase()}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -644,14 +1128,41 @@ export default function AddChainPage() {
                     <label className={cn("block text-xs font-medium tracking-widest mb-2", darkMode ? 'text-gray-300' : 'text-gray-700')}>
                       TOKEN ADDRESS *
                     </label>
-                    <input
-                      type="text"
-                      required
-                      value={homeChain.tokenAddress}
-                      onChange={(e) => handleHomeChainInputChange('tokenAddress', e.target.value)}
-                      className={cn("cursor-target w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black')}
-                      placeholder="0x9dafF7B0c496591CC20Af1D8394FF1cB8696c9a7"
-                    />
+                    <div className="relative">
+                      <input
+                        type="text"
+                        required
+                        value={homeChain.tokenAddress}
+                        onChange={(e) => handleHomeChainInputChange('tokenAddress', e.target.value)}
+                        onBlur={() => {
+                          if (homeChain.tokenAddress && homeChain.blockchainId && homeChain.rpcUrl) {
+                            verifyHomeToken();
+                          }
+                        }}
+                        className={cn("cursor-target w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', homeTokenVerified ? 'border-green-500' : homeTokenError ? 'border-red-500' : '')}
+                        placeholder="0x9dafF7B0c496591CC20Af1D8394FF1cB8696c9a7"
+                      />
+                      {homeTokenVerifying && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                        </div>
+                      )}
+                      {homeTokenVerified && !homeTokenVerifying && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500">
+                          ✓
+                        </div>
+                      )}
+                    </div>
+                    {homeTokenError && (
+                      <p className="mt-2 text-xs tracking-widest text-red-500">
+                        {homeTokenError}
+                      </p>
+                    )}
+                    {homeTokenData && homeTokenVerified && (
+                      <p className="mt-2 text-xs tracking-widest text-green-500">
+                        ✓ Token verified: {homeTokenData.name} ({homeTokenData.symbol})
+                      </p>
+                    )}
                   </div>
   
                   <div>
@@ -665,9 +1176,16 @@ export default function AddChainPage() {
                       max="18"
                       value={homeChain.tokenDecimals}
                       onChange={(e) => handleHomeChainInputChange('tokenDecimals', e.target.value)}
-                      className={cn("cursor-target w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black')}
+                      disabled={homeTokenVerified}
+                      readOnly={homeTokenVerified}
+                      className={cn("cursor-target w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', homeTokenVerified ? 'opacity-70 cursor-not-allowed' : '')}
                       placeholder="18"
                     />
+                    {homeTokenVerified && (
+                      <p className="mt-1 text-xs tracking-widest text-green-500">
+                        ✓ Auto-filled from verified token
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -714,7 +1232,7 @@ export default function AddChainPage() {
                             <span className="tracking-wide">{chain.name.toUpperCase()}</span>
                             {chain.isTestnet && (
                               <span className="ml-auto text-xs uppercase tracking-wide text-red-500">
-                                TESTNET
+                                FUJI
                               </span>
                             )}
                           </div>
@@ -751,16 +1269,38 @@ export default function AddChainPage() {
                   <label className={cn("block text-xs font-medium tracking-widest mb-2", darkMode ? 'text-gray-300' : 'text-gray-700')}>
                     BLOCKCHAIN ID *
                   </label>
-                  <input
-                    type="text"
-                    required
-                    value={remoteChain.blockchainId}
-                    onChange={(e) => handleRemoteChainInputChange('blockchainId', e.target.value)}
-                    disabled={!!remoteChainDisabledFields.blockchainId}
-                    readOnly={!!remoteChainDisabledFields.blockchainId}
-                    className={cn("cursor-target w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', remoteChainDisabledFields.blockchainId ? 'opacity-70 cursor-not-allowed' : '')}
-                    placeholder="0x9f49313c3f022e9fe5b6e7c1d98f0f53d86e53456c5e075e1881cac1c15968e4"
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      value={remoteChain.blockchainId}
+                      onChange={(e) => handleRemoteChainInputChange('blockchainId', e.target.value)}
+                      onBlur={() => {
+                        if (remoteChain.blockchainId && !remoteChainDisabledFields.blockchainId) {
+                          verifyRemoteChainBlockchainId(remoteChain.blockchainId, selectedNetwork);
+                        }
+                      }}
+                      disabled={!!remoteChainDisabledFields.blockchainId}
+                      readOnly={!!remoteChainDisabledFields.blockchainId}
+                      className={cn("cursor-target w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', remoteChainDisabledFields.blockchainId ? 'opacity-70 cursor-not-allowed' : '', remoteChainBlockchainIdValid === false ? 'border-red-500' : remoteChainBlockchainIdValid === true ? 'border-green-500' : '')}
+                      placeholder="0x9f49313c3f022e9fe5b6e7c1d98f0f53d86e53456c5e075e1881cac1c15968e4"
+                    />
+                    {remoteChainBlockchainIdVerifying && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    )}
+                  </div>
+                  {remoteChainBlockchainIdError && (
+                    <p className="mt-2 text-xs tracking-widest text-red-500">
+                      {remoteChainBlockchainIdError}
+                    </p>
+                  )}
+                  {remoteChainBlockchainIdValid === true && (
+                    <p className="mt-2 text-xs tracking-widest text-green-500">
+                      ✓ Blockchain : {remoteChainBlockchainName?.toUpperCase()}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -827,7 +1367,7 @@ export default function AddChainPage() {
                         <Info className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
                         <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none">
                           <div className={cn("relative text-xs rounded-none px-3 py-2 shadow-lg border whitespace-nowrap", darkMode ? 'bg-gray-800 text-gray-200 border-gray-700' : 'bg-[#0e0e0e] text-white border-gray-600')}>
-                            WHAT SHOULD BE YOUR WRAPPED TOKEN NAME ON YOUR CHAIN. EXAMPLE: WRAPPED AVAX
+                            WRAPPED TOKEN NAME ON REMOTE CHAIN. EXAMPLE: WRAPPED AVAX
                             <div className={cn("absolute top-full left-1/2 -translate-x-1/2 -mt-px w-0 h-0 border-l-transparent border-r-transparent border-b-transparent border-4", darkMode ? 'border-t-gray-800' : 'border-t-gray-900')}></div>
                           </div>
                         </div>
@@ -838,11 +1378,21 @@ export default function AddChainPage() {
                       required
                       value={remoteChain.tokenName}
                       onChange={(e) => handleRemoteChainInputChange('tokenName', e.target.value)}
-                      disabled={!!remoteChainDisabledFields.tokenName}
-                      readOnly={!!remoteChainDisabledFields.tokenName}
-                      className={cn("cursor-target w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', remoteChainDisabledFields.tokenName ? 'opacity-70 cursor-not-allowed' : '')}
+                      disabled={!!remoteChainDisabledFields.tokenName || remoteTokenConfigDisabled || homeTokenVerified}
+                      readOnly={!!remoteChainDisabledFields.tokenName || remoteTokenConfigDisabled || homeTokenVerified}
+                      className={cn("cursor-target w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', (remoteChainDisabledFields.tokenName || remoteTokenConfigDisabled || homeTokenVerified) ? 'opacity-70 cursor-not-allowed' : '')}
                       placeholder="Wrapped Avax"
                     />
+                    {remoteTokenConfigDisabled && !homeTokenVerified && (
+                      <p className="mt-1 text-xs tracking-widest text-gray-500">
+                        Verify tokens first to auto-fill
+                      </p>
+                    )}
+                    {homeTokenVerified && (
+                      <p className="mt-1 text-xs tracking-widest text-green-500">
+                        ✓ Auto-filled from verified token
+                      </p>
+                    )}
                   </div>
   
                   <div>
@@ -852,7 +1402,7 @@ export default function AddChainPage() {
                         <Info className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
                         <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none">
                           <div className={cn("relative text-xs rounded-none px-3 py-2 shadow-lg border whitespace-nowrap", darkMode ? 'bg-gray-800 text-gray-200 border-gray-700' : 'bg-[#0e0e0e] text-white border-gray-600')}>
-                            WHAT SHOULD BE YOUR WRAPPED TOKEN SYMBOL ON YOUR CHAIN. EXAMPLE: WAVAX
+                            WRAPPED TOKEN SYMBOL ON REMOTE CHAIN. EXAMPLE: WAVAX
                             <div className={cn("absolute top-full left-1/2 -translate-x-1/2 -mt-px w-0 h-0 border-l-transparent border-r-transparent border-b-transparent border-4", darkMode ? 'border-t-gray-800' : 'border-t-gray-900')}></div>
                           </div>
                         </div>
@@ -863,9 +1413,9 @@ export default function AddChainPage() {
                       required
                       value={remoteChain.tokenSymbol}
                       onChange={(e) => handleRemoteChainInputChange('tokenSymbol', e.target.value)}
-                      disabled={!!remoteChainDisabledFields.tokenSymbol}
-                      readOnly={!!remoteChainDisabledFields.tokenSymbol}
-                      className={cn("cursor-target w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', remoteChainDisabledFields.tokenSymbol ? 'opacity-70 cursor-not-allowed' : '')}
+                      disabled={!!remoteChainDisabledFields.tokenSymbol || remoteTokenConfigDisabled || homeTokenVerified}
+                      readOnly={!!remoteChainDisabledFields.tokenSymbol || remoteTokenConfigDisabled || homeTokenVerified}
+                      className={cn("cursor-target w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', (remoteChainDisabledFields.tokenSymbol || remoteTokenConfigDisabled || homeTokenVerified) ? 'opacity-70 cursor-not-allowed' : '')}
                       placeholder="WAVAX"
                     />
                   </div>
@@ -881,7 +1431,9 @@ export default function AddChainPage() {
                       max="18"
                       value={remoteChain.tokenDecimals}
                       onChange={(e) => handleRemoteChainInputChange('tokenDecimals', e.target.value)}
-                      className={cn("cursor-target w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black')}
+                      disabled={!!remoteChainDisabledFields.tokenDecimals || remoteTokenConfigDisabled || homeTokenVerified}
+                      readOnly={!!remoteChainDisabledFields.tokenDecimals || remoteTokenConfigDisabled || homeTokenVerified}
+                      className={cn("cursor-target w-full px-4 py-3 border rounded-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all", darkMode ? 'bg-gray-800/50 text-white border-gray-700' : 'bg-white text-gray-900 border-black', (remoteChainDisabledFields.tokenDecimals || remoteTokenConfigDisabled || homeTokenVerified) ? 'opacity-70 cursor-not-allowed' : '')}
                       placeholder="18"
                     />
                   </div>
@@ -892,21 +1444,48 @@ export default function AddChainPage() {
   
             {/* Submit Button Block */}
             <section className={cn("col-span-1 md:col-span-2 border p-6", darkMode ? 'border-gray-700' : 'border-black')}>
-              <div className="flex justify-end">
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className={cn("cursor-target flex items-center gap-3 px-8 py-4 border rounded-none font-semibold tracking-widest transition-all", isSubmitting ? 'cursor-not-allowed opacity-60' : 'cursor-pointer', darkMode ? 'bg-red-500/20 hover:bg-red-500/30 text-red-400 border-red-700/30' : 'bg-red-200 hover:bg-red-300 text-red-600 border-red-300')}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                      DEPLOYING...
-                    </>
-                  ) : (
-                    'DEPLOY BRIDGE'
-                  )}
-                </button>
+              <div className="flex flex-col items-end gap-4">
+                {!homeChainBlockchainIdValid && homeChain.blockchainId && (
+                  <p className="text-xs tracking-widest text-red-500">
+                    Please verify the home chain blockchain ID is correct
+                  </p>
+                )}
+                {!remoteChainBlockchainIdValid && remoteChain.blockchainId && (
+                  <p className="text-xs tracking-widest text-red-500">
+                    Please verify the remote chain blockchain ID is correct
+                  </p>
+                )}
+                {homeTokenError && (
+                  <p className="text-xs tracking-widest text-red-500">
+                    {homeTokenError}
+                  </p>
+                )}
+                {!homeTokenVerified && homeChain.tokenAddress && (
+                  <p className="text-xs tracking-widest text-red-500">
+                    Please verify the token address is correct
+                  </p>
+                )}
+                <div className="flex items-center gap-4">
+                  <button
+                    type="submit"
+                    disabled={isSubmitting || homeTokenVerifying || !homeChainBlockchainIdValid || !homeChain.blockchainId || !homeChain.tokenAddress || !homeChain.rpcUrl || !remoteChainBlockchainIdValid || !remoteChain.blockchainId || !remoteChain.rpcUrl || !homeTokenVerified}
+                    className={cn("cursor-target flex items-center gap-3 px-8 py-4 border rounded-none font-semibold tracking-widest transition-all", (isSubmitting || homeTokenVerifying || !homeChainBlockchainIdValid || !homeChain.blockchainId || !homeChain.tokenAddress || !homeChain.rpcUrl || !remoteChainBlockchainIdValid || !remoteChain.blockchainId || !remoteChain.rpcUrl || !homeTokenVerified) ? 'cursor-not-allowed opacity-60' : 'cursor-pointer', darkMode ? 'bg-red-500/20 hover:bg-red-500/30 text-red-400 border-red-700/30' : 'bg-red-200 hover:bg-red-300 text-red-600 border-red-300')}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                        DEPLOYING...
+                      </>
+                    ) : homeTokenVerifying ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                        VERIFYING TOKEN...
+                      </>
+                    ) : (
+                      'DEPLOY BRIDGE'
+                    )}
+                  </button>
+                </div>
               </div>
             </section>
           </form>

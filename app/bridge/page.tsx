@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { Orbitron } from "next/font/google";
 import { motion, AnimatePresence } from "framer-motion";
 
+const TRANSACTION_SUCCESS_ACTIVE_FOR_SEC = Number(process.env.NEXT_PUBLIC_TRANSACTION_SUCCESS_ACTIVE_FOR_SEC || 60) * 1000;
 
 const orbitron = Orbitron({ subsets: ["latin"], weight: ["400","700"] });
 // API Types
@@ -98,6 +99,8 @@ const DEFAULT_BRIDGE_LOADING_STATES = [
   { text: 'Bridge transaction submitted' },
   { text: 'Bridge transaction confirmed' },
 ];
+
+
 
 const cloneBridgeLoaderStates = () =>
   DEFAULT_BRIDGE_LOADING_STATES.map((state) => ({ ...state }));
@@ -576,13 +579,19 @@ export default function AvalinkMain() {
         
         setAvailableToChains(uniqueToChains);
         
-        // Set default to chain if available, but only if it's different from current
+        // Set default to chain if available
+        // Update if chain doesn't exist, blockchainId changed, or tokenRemoteAddress changed (for same chain with different token)
         if (uniqueToChains.length > 0) {
           setToChain((prevChain) => {
-            // Only update if the chain is different or doesn't exist
-            if (!prevChain || prevChain.blockchainId !== uniqueToChains[0].blockchainId) {
-              prevToChainIdRef.current = uniqueToChains[0].blockchainId || null;
-              return uniqueToChains[0];
+            const newChain = uniqueToChains[0];
+            // Update if chain doesn't exist, blockchainId changed, or tokenRemoteAddress changed
+            if (
+              !prevChain || 
+              prevChain.blockchainId !== newChain.blockchainId ||
+              prevChain.tokenRemoteAddress?.toLowerCase() !== newChain.tokenRemoteAddress?.toLowerCase()
+            ) {
+              prevToChainIdRef.current = newChain.blockchainId || null;
+              return newChain;
             }
             return prevChain;
           });
@@ -745,6 +754,14 @@ export default function AvalinkMain() {
     setFromToken(token);
     setTokenDecimals(token.decimals ?? null);
     setShowTokenModal(false);
+    // Reset toChain to force re-evaluation with new token
+    // This ensures tokenRemoteAddress is updated for the new token
+    setToChain(null);
+    setActiveIcttSetup(null);
+    // Reset refs to allow useEffect to run again
+    prevTokenAddressRef.current = null;
+    prevToChainIdRef.current = null;
+    isUpdatingTokenRef.current = false;
   };
 
   // Helper function to get correct RPC URL from chain info
@@ -1174,7 +1191,26 @@ export default function AvalinkMain() {
         );
       }
 
-      const destinationTokenTransferrerAddress = toChain.tokenRemoteAddress;
+      // Derive destinationTokenTransferrerAddress from activeIcttSetup if available (source of truth)
+      // Otherwise fall back to toChain.tokenRemoteAddress
+      let destinationTokenTransferrerAddress: string;
+      if (activeIcttSetup) {
+        const sourceChainId = fromChain?.id || null;
+        const isHomeChainContext = sourceChainId !== null && activeIcttSetup.tokenHomeChainId === sourceChainId;
+        destinationTokenTransferrerAddress = isHomeChainContext 
+          ? activeIcttSetup.tokenRemoteAddress 
+          : activeIcttSetup.tokenHomeAddress;
+        console.log('Using destinationTokenTransferrerAddress from activeIcttSetup:', {
+          destinationTokenTransferrerAddress,
+          isHomeChainContext,
+          sourceChainId,
+        });
+      } else if (toChain.tokenRemoteAddress) {
+        destinationTokenTransferrerAddress = toChain.tokenRemoteAddress;
+        console.log('Using destinationTokenTransferrerAddress from toChain:', destinationTokenTransferrerAddress);
+      } else {
+        throw new Error('Missing destination token transferrer address. Please reselect token and destination chain.');
+      }
       const recipient = userAddress;
       const primaryFeeTokenAddress = ethers.constants.AddressZero; // Use native token for fees
       const primaryFee = BigInt(0); // No fee for now
@@ -1360,7 +1396,7 @@ export default function AvalinkMain() {
 
       await loadTokenInfo();
       bridgeCompleted = true;
-      scheduleLoaderReset(30000);
+      scheduleLoaderReset(TRANSACTION_SUCCESS_ACTIVE_FOR_SEC);
       
       // Reset form
       setFromAmount('');
@@ -1423,20 +1459,20 @@ export default function AvalinkMain() {
             <h3 className={cn("text-lg font-bold tracking-widest", darkMode ? 'text-white' : 'text-gray-900')}>
               {isFrom ? 'SELECT SOURCE CHAIN' : 'SELECT DESTINATION CHAIN'}
             </h3>
-            <button onClick={onClose} className={cn("p-2 border rounded-none transition-colors", darkMode ? 'hover:bg-[#0e0e0e] border-gray-700' : 'hover:bg-gray-100 border-black')}>
+            <button onClick={onClose} className={cn("cursor-target p-2 border rounded-none transition-colors", darkMode ? 'hover:bg-[#0e0e0e] border-gray-700' : 'hover:bg-gray-100 border-black')}>
               <X className={cn("w-5 h-5", darkMode ? 'text-gray-400' : 'text-gray-600')} />
             </button>
           </div>
   
           <div className="p-4">
             <div className="relative mb-4">
-              <Search className={cn("absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5", darkMode ? 'text-gray-500' : 'text-gray-400')} />
+              <Search className={cn("cursor-target absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5", darkMode ? 'text-gray-500' : 'text-gray-400')} />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="SEARCH CHAINS"
-                className={cn("w-full border rounded-none pl-12 pr-4 py-3 outline-none focus:ring-2 focus:ring-red-500 transition-all tracking-widest text-sm", darkMode ? 'bg-[#0e0e0e] text-white border-gray-700' : 'bg-gray-100 text-gray-900 border-black')}
+                className={cn("cursor-target w-full border rounded-none pl-12 pr-4 py-3 outline-none focus:ring-2 focus:ring-red-500 transition-all tracking-widest text-sm", darkMode ? 'bg-[#0e0e0e] text-white border-gray-700' : 'bg-gray-100 text-gray-900 border-black')}
               />
             </div>
   
@@ -1457,7 +1493,7 @@ export default function AvalinkMain() {
                       <button
                         key={chain.id}
                         onClick={() => { onSelect(chain); }}
-                        className={cn("flex flex-col items-center gap-1 px-3 py-2 border rounded-none transition-colors flex-shrink-0", darkMode ? 'bg-[#0e0e0e] hover:bg-gray-700 border-gray-700' : 'bg-gray-100 hover:bg-gray-200 border-black')}
+                        className={cn("cursor-target flex flex-col items-center gap-1 px-3 py-2 border rounded-none transition-colors flex-shrink-0", darkMode ? 'bg-[#0e0e0e] hover:bg-gray-700 border-gray-700' : 'bg-gray-100 hover:bg-gray-200 border-black')}
                       >
                         {chain.logoUrl ? (
                           <Image src={chain.logoUrl} alt={chain.name} width={32} height={32} className="w-8 h-8 rounded-full object-cover" />
@@ -1477,7 +1513,7 @@ export default function AvalinkMain() {
                       <button
                         key={chain.id}
                         onClick={() => { onSelect(chain); }}
-                        className={cn("w-full flex items-center gap-3 p-3 border-b transition-colors", darkMode ? 'hover:bg-[#0e0e0e] border-gray-800' : 'hover:bg-gray-100 border-gray-200')}
+                        className={cn("cursor-target w-full flex items-center gap-3 p-3 border-b transition-colors", darkMode ? 'hover:bg-[#0e0e0e] border-gray-800' : 'hover:bg-gray-100 border-gray-200')}
                       >
                         {chain.logoUrl ? (
                           <Image src={chain.logoUrl} alt={chain.name} width={40} height={40} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
@@ -1523,20 +1559,20 @@ export default function AvalinkMain() {
         <div className={cn("rounded-none w-full max-w-md shadow-2xl border", darkMode ? 'bg-[#0e0e0e] border-gray-700' : 'bg-white border-black')}>
           <div className={cn("flex items-center justify-between p-5 border-b", darkMode ? 'border-gray-700' : 'border-black')}>
             <h3 className={cn("text-lg font-bold tracking-widest", darkMode ? 'text-white' : 'text-gray-900')}>SELECT A TOKEN</h3>
-            <button onClick={onClose} className={cn("p-2 border rounded-none transition-colors", darkMode ? 'hover:bg-[#0e0e0e] border-gray-700' : 'hover:bg-gray-100 border-black')}>
+            <button onClick={onClose} className={cn("cursor-target p-2 border rounded-none transition-colors", darkMode ? 'hover:bg-[#0e0e0e] border-gray-700' : 'hover:bg-gray-100 border-black')}>
               <X className={cn("w-5 h-5", darkMode ? 'text-gray-400' : 'text-gray-600')} />
             </button>
           </div>
   
           <div className="p-4">
             <div className="relative mb-4">
-              <Search className={cn("absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5", darkMode ? 'text-gray-500' : 'text-gray-400')} />
+              <Search className={cn("cursor-target absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5", darkMode ? 'text-gray-500' : 'text-gray-400')} />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="SEARCH TOKENS"
-                className={cn("w-full border rounded-none pl-12 pr-4 py-3 outline-none focus:ring-2 focus:ring-red-500 transition-all tracking-widest text-sm", darkMode ? 'bg-[#0e0e0e] text-white border-gray-700' : 'bg-gray-100 text-gray-900 border-black')}
+                className={cn("cursor-target w-full border rounded-none pl-12 pr-4 py-3 outline-none focus:ring-2 focus:ring-red-500 transition-all tracking-widest text-sm", darkMode ? 'bg-[#0e0e0e] text-white border-gray-700' : 'bg-gray-100 text-gray-900 border-black')}
               />
             </div>
   
@@ -1553,7 +1589,7 @@ export default function AvalinkMain() {
                       <button
                         key={`${token.symbol}-${token.address}`}
                         onClick={() => { onSelect(token); }}
-                        className={cn("flex flex-col items-center gap-1 px-3 py-2 border rounded-none transition-colors flex-shrink-0", darkMode ? 'bg-[#0e0e0e] hover:bg-gray-700 border-gray-700' : 'bg-gray-100 hover:bg-gray-200 border-black')}
+                        className={cn("cursor-target flex flex-col items-center gap-1 px-3 py-2 border rounded-none transition-colors flex-shrink-0", darkMode ? 'bg-[#0e0e0e] hover:bg-gray-700 border-gray-700' : 'bg-gray-100 hover:bg-gray-200 border-black')}
                       >
                         <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${token.color} flex items-center justify-center text-white text-xs font-bold`}>
                           {token.symbol.slice(0, 2)}
@@ -1569,7 +1605,7 @@ export default function AvalinkMain() {
                       <button
                         key={`${token.symbol}-${token.address}`}
                         onClick={() => { onSelect(token); }}
-                        className={cn("w-full flex items-center gap-3 p-3 border-b transition-colors", darkMode ? 'hover:bg-[#0e0e0e] border-gray-800' : 'hover:bg-gray-100 border-gray-200')}
+                        className={cn("cursor-target w-full flex items-center gap-3 p-3 border-b transition-colors", darkMode ? 'hover:bg-[#0e0e0e] border-gray-800' : 'hover:bg-gray-100 border-gray-200')}
                       >
                         <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${token.color} flex items-center justify-center text-white font-bold text-sm flex-shrink-0`}>
                           {token.symbol.slice(0, 2)}
@@ -1596,7 +1632,7 @@ export default function AvalinkMain() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
         
         {/* TITLE BLOCK */}
-        <section className={cn("col-span-1 sm:col-span-2 lg:col-span-1 border p-6 flex flex-col items-center justify-center text-5xl sm:text-6xl font-bold tracking-wide", darkMode ? 'border-gray-700' : 'border-black')}>
+        <section className={cn("col-span-1 sm:col-span-2 lg:col-span-1 border p-6 flex flex-col items-center justify-center text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-wide", darkMode ? 'border-gray-700' : 'border-black')}>
           AVALINK
           <div className="text-xs tracking-widest">THE INTERCHAIN BRIDGE</div>
         </section>
@@ -1670,8 +1706,8 @@ export default function AvalinkMain() {
             <div className="mb-2">
               <button
                 onClick={() => setShowTokenModal(true)}
-                disabled={availableTokens.length === 0}
-                className={cn("cursor-target w-full border rounded-none p-4 transition-colors flex items-center justify-between", darkMode ? 'border-gray-700 bg-[#0e0e0e]/50 hover:bg-[#0e0e0e]/70' : 'border-black bg-gray-100/50 hover:bg-gray-100/70', availableTokens.length === 0 ? 'opacity-50 cursor-not-allowed' : '')}
+                disabled={availableTokens.length === 0 || loadingTokens}
+                className={cn("cursor-target w-full border rounded-none p-4 transition-colors flex items-center justify-between", darkMode ? 'border-gray-700 bg-[#0e0e0e]/50 hover:bg-[#0e0e0e]/70' : 'border-black bg-gray-100/50 hover:bg-gray-100/70', (availableTokens.length === 0 || loadingTokens) ? 'opacity-50 cursor-not-allowed' : '')}
               >
                 <div className="flex items-center gap-3">
                   {fromToken ? (
@@ -1884,8 +1920,8 @@ export default function AvalinkMain() {
              >
                <div
                  className={cn(
-                   "w-full h-full flex items-center justify-center transition-all duration-500",
-                   darkMode ? "bg-[#141414]" : "bg-white"
+                   "w-full h-full flex items-center justify-center transition-all duration-500 border",
+                   darkMode ? "bg-[#141414] border-gray-700" : "bg-white border-black"
                  )}
                >
                 <Loader
