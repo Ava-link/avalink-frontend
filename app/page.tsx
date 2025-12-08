@@ -4,11 +4,14 @@ import React from "react";
 import { Orbitron } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { useWallet } from "@/app/providers/WalletProvider";
+import { WrenchIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 const orbitron = Orbitron({ subsets: ["latin"], weight: ["400","700"] });
 
 export default function Landing() {
   const { darkMode } = useWallet();
+  const router = useRouter();
 
   return (
     <main
@@ -54,18 +57,38 @@ export default function Landing() {
         {/* BLOCK WITH SLANTED LINES */}
         <section
           className={cn(
-            "border relative overflow-hidden h-40 sm:h-56 lg:h-64",
+            "border p-6 text-sm tracking-widest sm:h-auto lg:h-auto overflow-hidden",
             darkMode ? "border-gray-700" : "border-black"
           )}
         >
-          <div
+          <h2 className="font-bold mb-3">FEATURES<br/></h2>
+          -- TEST OUT THE BRIDGE WITH OUR FAUCET<br/>
+          
+          
+          <div 
+            onClick={() => router.push('/faucet')}
             className={cn(
-              "absolute inset-0 animate-grid-right-to-left bg-[length:20px_20px]",
-              darkMode
-                ? "bg-[repeating-linear-gradient(135deg,#0E0E0E_0_10px,#1a1a1a_10px_20px)]"
-                : "bg-[repeating-linear-gradient(135deg,#e0e0e0_0_10px,#f2f2f2_10px_20px)]"
+              "cursor-target border p-4 text-sm tracking-widest mt-4 relative overflow-hidden",
+              darkMode ? "border-gray-700 hover:bg-gray-800/50" : "border-black hover:bg-gray-200/50"
             )}
-          ></div>
+          >
+            <div
+              className={cn(
+                "absolute inset-0 animate-grid-right-to-left bg-[length:20px_20px]",
+                darkMode
+                  ? "bg-[repeating-linear-gradient(135deg,#0E0E0E_0_10px,#1a1a1a_10px_20px)]"
+                  : "bg-[repeating-linear-gradient(135deg,#e0e0e0_0_10px,#f2f2f2_10px_20px)]"
+              )}
+            ></div>
+            <div className="relative z-10">
+              <WrenchIcon className="w-4 h-4 inline-block mr-2" />
+              FAUCET
+            </div>
+          </div>
+
+          <div className="text-red-500 mt-4">
+            ●●●●●●●●<br/><br/>
+          </div>
         </section>
 
 
